@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, startTransition } from 'react';
+import { useState, startTransition, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Mail, Lock, AlertCircle, Eye, EyeOff, MessageSquare, Target, Phone } from 'lucide-react';
@@ -9,7 +9,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FinnlyAuthBackground } from '@/components/ui/FinnlyAuthBackground';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errorParams = searchParams.get('error');
@@ -383,6 +383,14 @@ export default function LoginPage() {
         }
       `}</style>
     </FinnlyAuthBackground>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="w-full h-screen bg-[#FAF8F5]"></div>}>
+      <LoginContent />
+    </Suspense>
   );
 }
 

@@ -10,6 +10,12 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Finnly - Seu consultor financeiro com IA",
   description: "Plataforma de consultoria financeira inteligente que acompanha sua vida financeira e fornece recomendações personalizadas.",
+  icons: {
+    icon: [
+      { url: '/logo.png', type: 'image/png' },
+    ],
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

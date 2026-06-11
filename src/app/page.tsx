@@ -135,7 +135,7 @@ export default function LandingPage() {
         <div className="bg-white/70 backdrop-blur-xl border border-gray-200/50 shadow-[0_8px_32px_rgba(0,0,0,0.06)] rounded-full pl-3 pr-3 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden relative">
-              <Image src="/images/webp/logosemfundo.webp" alt="Finnly Logo" fill className="object-contain" />
+              <Image src="/images/logosemfundo.png" alt="Finnly Logo" fill className="object-contain" />
             </div>
             <span className="text-lg font-bold tracking-tight text-[#016B4C] hidden md:block">Finnly</span>
           </div>
@@ -905,7 +905,7 @@ export default function LandingPage() {
             <div className="lg:col-span-2 flex flex-col gap-6">
               <div className="flex items-center gap-3">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden relative">
-                  <Image src="/images/webp/logosemfundo.webp" alt="Finnly Logo" fill className="object-contain" />
+                  <Image src="/images/logosemfundo.png" alt="Finnly Logo" fill className="object-contain" />
                 </div>
                 <span className="text-2xl font-bold tracking-tight text-[#016B4C]">Finnly</span>
               </div>

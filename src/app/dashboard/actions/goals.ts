@@ -52,3 +52,20 @@ export async function deleteGoal(id: string) {
   revalidatePath('/dashboard', 'layout')
   return { success: true }
 }
+
+export async function updateGoalTarget(id: string, targetAmount: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado' }
+
+  const { error } = await supabase
+    .from('goals')
+    .update({ target_amount: targetAmount, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard', 'layout')
+  return { success: true }
+}
+

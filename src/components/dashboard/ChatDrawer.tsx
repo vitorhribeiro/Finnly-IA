@@ -47,7 +47,6 @@ export function ChatDrawer({ seed, onClose }: ChatDrawerProps) {
       seeded.current = true
       sendMessage(seed)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed])
 
   useEffect(() => {

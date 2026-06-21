@@ -12,7 +12,10 @@ interface RingProps {
 
 export function Ring({ value, size = 132, stroke = 13, from = '#FFB300', to = '#F57C00' }: RingProps) {
   const [animated, setAnimated] = useState(false)
-  useEffect(() => { setAnimated(true) }, [])
+  useEffect(() => {
+    const t = setTimeout(() => setAnimated(true), 0)
+    return () => clearTimeout(t)
+  }, [])
 
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
@@ -44,26 +47,26 @@ export function Donut({ data = [], size = 128, stroke = 20 }: { data: DonutSegme
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const total = data.reduce((s, d) => s + d.value, 0) || 1
-  let acc = 0
+  const segments = data.map((d, i) => {
+    const frac = d.value / total
+    const len = c * frac
+    const dash = Math.max(len - 2, 0)
+    const prevFracSum = data.slice(0, i).reduce((sum, item) => sum + (item.value / total), 0)
+    const off = -c * prevFracSum
+    return { color: d.color, dash, off }
+  })
 
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F1ECE1" strokeWidth={stroke} />
-      {data.map((d, i) => {
-        const frac = d.value / total
-        const len = c * frac
-        const dash = Math.max(len - 2, 0)
-        const off = -c * acc
-        acc += frac
-        return (
-          <circle
-            key={i} cx={size / 2} cy={size / 2} r={r} fill="none"
-            stroke={d.color} strokeWidth={stroke}
-            strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={off}
-            style={{ transition: 'stroke-dasharray 1s cubic-bezier(.2,.8,.2,1)' }}
-          />
-        )
-      })}
+      {segments.map((seg, i) => (
+        <circle
+          key={i} cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={seg.color} strokeWidth={stroke}
+          strokeDasharray={`${seg.dash} ${c - seg.dash}`} strokeDashoffset={seg.off}
+          style={{ transition: 'stroke-dasharray 1s cubic-bezier(.2,.8,.2,1)' }}
+        />
+      ))}
     </svg>
   )
 }

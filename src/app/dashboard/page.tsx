@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { DashboardApp } from '@/components/dashboard/DashboardApp'
 import { getDashboardData } from '@/lib/data'
 
-export default async function DashboardPage() {
+interface PageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -27,7 +31,10 @@ export default async function DashboardPage() {
 
   const initial = (fullName[0] ?? 'V').toUpperCase()
 
-  const dashboardData = await getDashboardData(user.id)
+  const params = await searchParams
+  const month = typeof params.month === 'string' ? params.month : undefined
+
+  const dashboardData = await getDashboardData(user.id, month)
 
   async function signOut() {
     'use server'
@@ -42,6 +49,7 @@ export default async function DashboardPage() {
       userName={fullName}
       userInitial={initial}
       dashboardData={dashboardData}
+      selectedMonthParam={month}
       signOut={signOut}
     />
   )

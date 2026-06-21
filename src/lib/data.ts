@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
-import type { DashboardData, CategorySummary, Transaction, Goal, FinancialProfile } from '@/types/database'
+import type { DashboardData, CategorySummary, Transaction, Goal, FinancialProfile, Subscription } from '@/types/database'
 import { CATEGORY_COLORS } from '@/types/database'
 
 function currentMonthRange() {
@@ -46,11 +46,23 @@ export async function getFinancialProfile(userId: string): Promise<FinancialProf
   return data
 }
 
-export async function getDashboardData(userId: string): Promise<DashboardData> {
+export async function getDashboardData(userId: string, selectedMonthYM?: string): Promise<DashboardData> {
   const supabase = await createClient()
-  const { start, end } = currentMonthRange()
+  let start: string
+  let end: string
 
-  const [incomesRes, expensesRes, goalsRes, profileRes] = await Promise.all([
+  if (selectedMonthYM) {
+    const [y, m] = selectedMonthYM.split('-').map(Number)
+    const lastDay = new Date(y, m, 0).getDate()
+    start = `${y}-${String(m).padStart(2, '0')}-01`
+    end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  } else {
+    const { start: s, end: e } = currentMonthRange()
+    start = s
+    end = e
+  }
+
+  const [incomesRes, expensesRes, goalsRes, profileRes, subscriptionsRes] = await Promise.all([
     supabase
       .from('incomes')
       .select('*')
@@ -75,12 +87,18 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       .select('*')
       .eq('user_id', userId)
       .single(),
+    supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('due_day', { ascending: true }),
   ])
 
   const incomes = incomesRes.data ?? []
   const expenses = expensesRes.data ?? []
   const goals: Goal[] = goalsRes.data ?? []
   const financialProfile: FinancialProfile | null = profileRes.data ?? null
+  const subscriptions: Subscription[] = subscriptionsRes?.data ?? []
 
   const monthlyIncome = incomes.reduce((s, r) => s + Number(r.amount), 0)
   const monthlyExpenses = expenses.reduce((s, r) => s + Number(r.amount), 0)
@@ -144,6 +162,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     recentTransactions,
     goals,
     financialProfile,
+    subscriptions,
   }
 }
 

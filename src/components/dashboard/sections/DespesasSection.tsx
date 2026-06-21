@@ -29,7 +29,17 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let active = true
+    async function init() {
+      const data = await getAllExpenses()
+      if (!active) return
+      setItems(data as Expense[])
+      setLoading(false)
+    }
+    init()
+    return () => { active = false }
+  }, [])
 
   function handleSubmit(fd: FormData) {
     setError('')
@@ -130,18 +140,18 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
                 <input name="description" placeholder="Ex: Mercado" />
               </label>
               <label>
-                Valor (R$) <span className="req">*</span>
+                <span>Valor (R$) <span className="req">*</span></span>
                 <input name="amount" type="number" min="0.01" step="0.01" placeholder="0,00" required />
               </label>
               <label>
-                Categoria <span className="req">*</span>
+                <span>Categoria <span className="req">*</span></span>
                 <select name="category" defaultValue="Alimentação" required>
                   {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               </label>
               <label>
-                Data <span className="req">*</span>
-                <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+                <span>Data <span className="req">*</span></span>
+                <input name="date" type="date" defaultValue={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()} required />
               </label>
               {error && <p className="form-error">{error}</p>}
               <div className="form-actions">

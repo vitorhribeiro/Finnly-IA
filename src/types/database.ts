@@ -17,8 +17,16 @@ export interface FinancialProfile {
   has_debts: boolean
   preferred_usage: 'app' | 'whatsapp' | 'ambos' | null
   onboarding_completed: boolean
+  dashboard_layout: DashboardLayout | null
   created_at: string
   updated_at: string
+}
+
+export interface DashboardLayout {
+  visibility: Record<string, boolean>
+  leftOrder: string[]
+  rightOrder: string[]
+  generalOrder?: string[]
 }
 
 export interface Income {
@@ -28,7 +36,21 @@ export interface Income {
   category: string
   description: string | null
   date: string
+  is_recurring: boolean
+  notes: string | null
   created_at: string
+  updated_at?: string
+}
+
+export interface IncomeCategory {
+  id: string
+  user_id: string | null
+  name: string
+  color: string
+  icon: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface Expense {
@@ -50,6 +72,18 @@ export interface Goal {
   target_date: string | null
   icon: string
   color: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Subscription {
+  id: string
+  user_id: string
+  name: string
+  amount: number
+  due_day: number
+  category: string
+  last_paid_month: string | null
   created_at: string
   updated_at: string
 }
@@ -91,6 +125,7 @@ export interface DashboardData {
   recentTransactions: Transaction[]
   goals: Goal[]
   financialProfile: FinancialProfile | null
+  subscriptions: Subscription[]
 }
 
 // ---- Categorias disponíveis ----

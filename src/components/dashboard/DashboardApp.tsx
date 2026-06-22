@@ -1889,7 +1889,7 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
                   onAddSubscription={handleAddSubscription}
                 />
               )}
-              {active === 'receitas' && <ReceitasSection hidden={hidden} />}
+              {active === 'receitas' && <ReceitasSection hidden={hidden} onAsk={openChat} />}
               {active === 'despesas' && <DespesasSection hidden={hidden} />}
               {active === 'goals' && <MetasSection hidden={hidden} />}
               {active === 'ai' && (

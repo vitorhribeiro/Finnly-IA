@@ -14,6 +14,7 @@ import {
   ShoppingBag, Store,
   Gift, Star,
   CircleDollarSign,
+  CalendarClock,
 } from 'lucide-react'
 import { Donut } from '../Charts'
 import { InfoTooltip } from '../InfoTooltip'
@@ -34,6 +35,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Gift, Star,
   Sparkles, CircleDollarSign,
   TrendingDown, AlertCircle, Calendar,
+  CalendarClock,
 }
 
 const ICON_PICKER_GROUPS = [
@@ -58,6 +60,23 @@ const COLOR_OPTIONS = [
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function processCategories(cats: IncomeCategory[]): IncomeCategory[] {
+  const filtered = cats.filter(c => c.name !== 'Aluguel Recebido')
+  if (!filtered.some(c => c.name.toLowerCase() === 'pix')) {
+    filtered.push({
+      id: 'default-pix',
+      name: 'Pix',
+      color: '#00838F',
+      icon: 'Wallet',
+      is_default: true,
+      user_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+  }
+  return filtered
 }
 
 function formatDate(d: string) {
@@ -515,7 +534,12 @@ interface NewCategoryModalProps {
 function NewCategoryModal({ onClose, onSave }: NewCategoryModalProps) {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
+    return () => {
+      const openModals = document.querySelectorAll('.modal-scrim')
+      if (openModals.length <= 1) {
+        document.body.style.overflow = ''
+      }
+    }
   }, [])
 
   const [name, setName] = useState('')
@@ -576,27 +600,18 @@ function NewCategoryModal({ onClose, onSave }: NewCategoryModalProps) {
 
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>Ícone</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {ICON_PICKER_GROUPS.map(g => (
-                <div key={g.label}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--faint)', marginBottom: 6 }}>
-                    {g.label}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {g.icons.map(ic => (
-                      <button
-                        key={ic}
-                        type="button"
-                        className={`icon-btn-pick${ic === icon ? ' selected' : ''}`}
-                        onClick={() => setIcon(ic)}
-                        title={ic}
-                        style={ic === icon ? { background: color + '22', borderColor: color, color } : {}}
-                      >
-                        <DynIcon name={ic} size={20} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            <div className="icon-picker-grid">
+              {Array.from(new Set(ICON_PICKER_GROUPS.flatMap(g => g.icons))).map(ic => (
+                <button
+                  key={ic}
+                  type="button"
+                  className={`icon-btn-pick${ic === icon ? ' selected' : ''}`}
+                  onClick={() => setIcon(ic)}
+                  title={ic}
+                  style={ic === icon ? { background: color + '22', borderColor: color, color } : {}}
+                >
+                  <DynIcon name={ic} size={20} />
+                </button>
               ))}
             </div>
           </div>
@@ -781,7 +796,12 @@ interface IncomeModalProps {
 function IncomeModal({ income, defaultValues, categories, onClose, onSaved, onRequestNewCategory }: IncomeModalProps) {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
+    return () => {
+      const openModals = document.querySelectorAll('.modal-scrim')
+      if (openModals.length <= 1) {
+        document.body.style.overflow = ''
+      }
+    }
   }, [])
 
   const isEdit = !!income
@@ -906,7 +926,7 @@ function IncomeModal({ income, defaultValues, categories, onClose, onSaved, onRe
                     display: 'grid', placeItems: 'center',
                     transition: 'all .2s',
                   }}>
-                    <RefreshCw size={16} />
+                    <CalendarClock size={16} />
                   </span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Receita recorrente</div>
@@ -944,9 +964,162 @@ function IncomeModal({ income, defaultValues, categories, onClose, onSaved, onRe
   )
 }
 
+// ============================================================ INCOME ALLOCATION WIDGET
+
+interface IncomeAllocationWidgetProps {
+  totalIncome: number
+  onAsk?: (seed: string) => void
+}
+
+function IncomeAllocationWidget({ totalIncome, onAsk }: IncomeAllocationWidgetProps) {
+  const essential = totalIncome * 0.5
+  const desires = totalIncome * 0.3
+  const savings = totalIncome * 0.2
+
+  const handleDetail = () => {
+    if (!onAsk) return
+    onAsk(
+      `Minha renda total deste mês foi de R$ ${totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. ` +
+      `Gostaria de detalhar meu planejamento financeiro seguindo a regra 50/30/20:\n` +
+      `- R$ ${essential.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para Necessidades (50%)\n` +
+      `- R$ ${desires.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para Desejos (30%)\n` +
+      `- R$ ${savings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para Poupança/Investimentos (20%)\n` +
+      `Me dê sugestões práticas de como organizar minhas despesas nessas proporções.`
+    )
+  }
+
+  return (
+    <div className="card fade-up" style={{ animationDelay: '120ms' }}>
+      <div className="card-head" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 32, height: 32, borderRadius: 10,
+            background: 'rgba(1, 88, 76, 0.08)', color: 'var(--teal)',
+            display: 'grid', placeItems: 'center'
+          }}>
+            <Coins size={16} />
+          </span>
+          <div>
+            <div className="card-title" style={{ fontSize: 15, fontWeight: 800 }}>Planejamento 50/30/20</div>
+            <div style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 600, marginTop: 1 }}>Sugestão de alocação mensal</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>
+            <span style={{ color: 'var(--muted)' }}>Necessidades (50%)</span>
+            <span className="tabnums" style={{ color: 'var(--ink)' }}>R$ {brl(essential)}</span>
+          </div>
+          <div style={{ width: '100%', height: 7, borderRadius: 10, background: 'var(--line-soft)', overflow: 'hidden' }}>
+            <div style={{ width: '50%', height: '100%', background: 'var(--teal)', borderRadius: 10 }} />
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>
+            <span style={{ color: 'var(--muted)' }}>Desejos e Lazer (30%)</span>
+            <span className="tabnums" style={{ color: 'var(--ink)' }}>R$ {brl(desires)}</span>
+          </div>
+          <div style={{ width: '100%', height: 7, borderRadius: 10, background: 'var(--line-soft)', overflow: 'hidden' }}>
+            <div style={{ width: '30%', height: '100%', background: 'var(--orange)', borderRadius: 10 }} />
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}>
+            <span style={{ color: 'var(--muted)' }}>Poupança / Invest. (20%)</span>
+            <span className="tabnums" style={{ color: 'var(--ink)' }}>R$ {brl(savings)}</span>
+          </div>
+          <div style={{ width: '100%', height: 7, borderRadius: 10, background: 'var(--line-soft)', overflow: 'hidden' }}>
+            <div style={{ width: '20%', height: '100%', background: 'var(--gold)', borderRadius: 10 }} />
+          </div>
+        </div>
+
+        <button
+          onClick={handleDetail}
+          disabled={totalIncome <= 0 || !onAsk}
+          className="btn-primary"
+          style={{
+            marginTop: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            background: 'var(--teal)', border: 'none', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 700
+          }}
+        >
+          <Sparkles size={14} /> Detalhar no Finnly IA
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================ AI QUICK ACTIONS
+
+interface IncomeQuickActionsProps {
+  onAsk?: (seed: string) => void
+}
+
+function IncomeQuickActions({ onAsk }: IncomeQuickActionsProps) {
+  const actions = [
+    {
+      label: 'Declaração de IR',
+      prompt: 'Como declarar minhas receitas e rendimentos no Imposto de Renda passo a passo?',
+      icon: 'Receipt'
+    },
+    {
+      label: 'Ideias de Renda Extra',
+      prompt: 'Quais são as melhores ideias e oportunidades de renda extra para começar hoje com pouco ou nenhum investimento?',
+      icon: 'TrendingUp'
+    },
+    {
+      label: 'Simulador de Investimentos',
+      prompt: 'Se eu poupar uma parte da minha renda mensal, quanto posso acumular em 1 ano, 5 anos e 10 anos investindo em renda fixa ou tesouro direto?',
+      icon: 'PiggyBank'
+    }
+  ]
+
+  return (
+    <div className="card fade-up" style={{ animationDelay: '90ms', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{
+          width: 30, height: 30, borderRadius: 8,
+          background: 'rgba(245, 124, 0, 0.08)', color: 'var(--orange)',
+          display: 'grid', placeItems: 'center'
+        }}>
+          <Sparkles size={14} />
+        </span>
+        <div>
+          <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--ink)' }}>Ações Rápidas de IA</div>
+          <div style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 600 }}>Pergunte ao Finnly IA sobre suas receitas</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {actions.map(a => (
+          <button
+            key={a.label}
+            onClick={() => onAsk?.(a.prompt)}
+            disabled={!onAsk}
+            className="ai-chip-btn"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'var(--surface-2)', border: '1px solid var(--line)',
+              borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700,
+              color: 'var(--ink)', cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            <span style={{ color: 'var(--muted)', display: 'inline-flex' }}><DynIcon name={a.icon} size={13} /></span>
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ============================================================ MAIN SECTION
 
-export function ReceitasSection({ hidden }: { hidden: boolean }) {
+export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (seed: string) => void }) {
   const [allIncomes, setAllIncomes] = useState<Income[]>([])
   const [categories, setCategories] = useState<IncomeCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -979,7 +1152,7 @@ export function ReceitasSection({ hidden }: { hidden: boolean }) {
     setLoading(true)
     const [inc, cats] = await Promise.all([getIncomesForModule(), getIncomeCategories()])
     setAllIncomes(inc as Income[])
-    setCategories(cats as IncomeCategory[])
+    setCategories(processCategories(cats as IncomeCategory[]))
     setLoading(false)
   }
 
@@ -989,7 +1162,7 @@ export function ReceitasSection({ hidden }: { hidden: boolean }) {
       const [inc, cats] = await Promise.all([getIncomesForModule(), getIncomeCategories()])
       if (!active) return
       setAllIncomes(inc as Income[])
-      setCategories(cats as IncomeCategory[])
+      setCategories(processCategories(cats as IncomeCategory[]))
       setLoading(false)
     }
     init()
@@ -1370,7 +1543,21 @@ export function ReceitasSection({ hidden }: { hidden: boolean }) {
                       <div className="row-sub">
                         {item.category} · {formatDate(item.date)}
                         {item.is_recurring && (
-                          <span style={{ marginLeft: 8, color: catColor, fontWeight: 700, fontSize: 11 }}>↻ Recorrente</span>
+                          <span style={{
+                            marginLeft: 8,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            color: 'var(--teal)',
+                            background: 'rgba(1, 88, 76, 0.08)',
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            fontWeight: 800,
+                            fontSize: 10,
+                            verticalAlign: 'middle',
+                          }}>
+                            <CalendarClock size={10} /> Recorrente
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1436,6 +1623,9 @@ export function ReceitasSection({ hidden }: { hidden: boolean }) {
             )}
           </section>
 
+          {/* Budget 50/30/20 Planner */}
+          <IncomeAllocationWidget totalIncome={currentTotal} onAsk={onAsk} />
+
           {/* Recurring panel */}
           <RecurringPanel
             allIncomes={allIncomes}
@@ -1446,6 +1636,9 @@ export function ReceitasSection({ hidden }: { hidden: boolean }) {
           />
         </div>
       </div>
+
+      {/* ============ AI QUICK ACTIONS ============ */}
+      <IncomeQuickActions onAsk={onAsk} />
 
       {/* ============ TREND CHART ============ */}
       <TrendChart allIncomes={allIncomes} selectedMonth={selectedMonth} hidden={hidden} />

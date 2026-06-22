@@ -46,7 +46,7 @@ insert into public.income_categories (user_id, name, color, icon, is_default) va
   (null, 'Comissão',         '#F57C00', 'Percent',     true),
   (null, 'Dividendos',       '#FFB300', 'TrendingUp',  true),
   (null, 'Reembolso',        '#28A745', 'Receipt',     true),
-  (null, 'Aluguel Recebido', '#7B1FA2', 'Home',        true),
+  (null, 'Pix',              '#00838F', 'Wallet',      true),
   (null, 'Vendas',           '#E91E63', 'ShoppingBag', true),
   (null, 'Presente',         '#FF5722', 'Gift',        true),
   (null, 'Outros',           '#90A4AE', 'Sparkles',    true)

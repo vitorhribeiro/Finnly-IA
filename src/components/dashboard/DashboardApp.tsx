@@ -1062,8 +1062,12 @@ function HomeView({
         </section>
 
         {hasGeneralItems && (
-          <div className="col-4 fd-stack">
-            {visibleGeneralItems.map(key => renderWidget(key))}
+          <div className="col-4 fd-stack" style={{ height: '100%' }}>
+            {visibleGeneralItems.map(key => (
+              <div key={key} className="general-widget-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {renderWidget(key)}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1194,6 +1198,9 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
   const [generalOrder, setGeneralOrder] = useState(DEFAULT_GENERAL_ORDER)
   const [leftOrder, setLeftOrder] = useState(DEFAULT_LEFT_ORDER)
   const [rightOrder, setRightOrder] = useState(DEFAULT_RIGHT_ORDER)
+  const [draggedItem, setDraggedItem] = useState<{ section: 'general' | 'left' | 'right'; index: number } | null>(null)
+  const [dragOverItem, setDragOverItem] = useState<{ section: 'general' | 'left' | 'right'; index: number } | null>(null)
+  const [customizerError, setCustomizerError] = useState<string | null>(null)
 
   const handleCloseCustomizer = () => {
     setIsClosing(true)
@@ -1332,7 +1339,120 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
     }
   }
 
+  const handleDragStart = (e: React.DragEvent, section: 'general' | 'left' | 'right', index: number) => {
+    setDraggedItem({ section, index })
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', '')
+  }
+
+  const handleDragOver = (e: React.DragEvent, targetSection: 'general' | 'left' | 'right', targetIndex: number) => {
+    e.preventDefault()
+    if (!draggedItem) return
+    if (dragOverItem?.section !== targetSection || dragOverItem?.index !== targetIndex) {
+      setDragOverItem({ section: targetSection, index: targetIndex })
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetSection: 'general' | 'left' | 'right', targetIndex: number) => {
+    e.preventDefault()
+    setDragOverItem(null)
+    if (!draggedItem) return
+
+    const sourceSection = draggedItem.section
+    const sourceIndex = draggedItem.index
+
+    if (sourceSection === targetSection && sourceIndex === targetIndex) return
+
+    // Limit check for General area: block and show error banner
+    if (targetSection === 'general' && sourceSection !== 'general' && generalOrder.length >= 1) {
+      setCustomizerError('A área superior (Geral) suporta no máximo 1 card. Remova ou mova o card atual primeiro.')
+      setTimeout(() => setCustomizerError(null), 4000)
+      setDraggedItem(null)
+      return
+    }
+
+    const nextGeneral = [...generalOrder]
+    const nextLeft = [...leftOrder]
+    const nextRight = [...rightOrder]
+
+    const sourceList = sourceSection === 'general' ? nextGeneral : sourceSection === 'left' ? nextLeft : nextRight
+    const key = sourceList[sourceIndex]
+
+    // Remove from source
+    if (sourceSection === 'general') nextGeneral.splice(sourceIndex, 1)
+    else if (sourceSection === 'left') nextLeft.splice(sourceIndex, 1)
+    else nextRight.splice(sourceIndex, 1)
+
+    // Insert into target
+    if (targetSection === 'general') nextGeneral.splice(targetIndex, 0, key)
+    else if (targetSection === 'left') nextLeft.splice(targetIndex, 0, key)
+    else nextRight.splice(targetIndex, 0, key)
+
+    setGeneralOrder(nextGeneral)
+    setLeftOrder(nextLeft)
+    setRightOrder(nextRight)
+    await saveLayout(layoutVisibility, nextGeneral, nextLeft, nextRight)
+    setDraggedItem(null)
+  }
+
+  const handleDropSection = async (e: React.DragEvent, targetSection: 'general' | 'left' | 'right') => {
+    e.preventDefault()
+    setDragOverItem(null)
+    if (!draggedItem) return
+
+    const sourceSection = draggedItem.section
+    const sourceIndex = draggedItem.index
+
+    if (sourceSection === targetSection) return
+
+    // Limit check for General area: block and show error banner
+    if (targetSection === 'general' && generalOrder.length >= 1) {
+      setCustomizerError('A área superior (Geral) suporta no máximo 1 card. Remova ou mova o card atual primeiro.')
+      setTimeout(() => setCustomizerError(null), 4000)
+      setDraggedItem(null)
+      return
+    }
+
+    const nextGeneral = [...generalOrder]
+    const nextLeft = [...leftOrder]
+    const nextRight = [...rightOrder]
+
+    const sourceList = sourceSection === 'general' ? nextGeneral : sourceSection === 'left' ? nextLeft : nextRight
+    const key = sourceList[sourceIndex]
+
+    // Remove from source
+    if (sourceSection === 'general') nextGeneral.splice(sourceIndex, 1)
+    else if (sourceSection === 'left') nextLeft.splice(sourceIndex, 1)
+    else nextRight.splice(sourceIndex, 1)
+
+    // Append to target
+    if (targetSection === 'general') nextGeneral.push(key)
+    else if (targetSection === 'left') nextLeft.push(key)
+    else nextRight.push(key)
+
+    setGeneralOrder(nextGeneral)
+    setLeftOrder(nextLeft)
+    setRightOrder(nextRight)
+    await saveLayout(layoutVisibility, nextGeneral, nextLeft, nextRight)
+    setDraggedItem(null)
+  }
+
   const handleMoveSection = async (key: string, targetSection: 'general' | 'left' | 'right') => {
+    const currentSection = generalOrder.includes(key)
+      ? 'general'
+      : leftOrder.includes(key)
+        ? 'left'
+        : 'right'
+
+    if (currentSection === targetSection) return
+
+    // Limit check for General area: block and show error banner
+    if (targetSection === 'general' && generalOrder.length >= 1) {
+      setCustomizerError('A área superior (Geral) suporta no máximo 1 card. Remova ou mova o card atual primeiro.')
+      setTimeout(() => setCustomizerError(null), 4000)
+      return
+    }
+
     const nextGeneral = generalOrder.filter(x => x !== key)
     const nextLeft = leftOrder.filter(x => x !== key)
     const nextRight = rightOrder.filter(x => x !== key)
@@ -1445,60 +1565,139 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
   const renderCustomizerItem = (key: string, index: number, section: 'general' | 'left' | 'right', list: string[]) => {
     const info = WIDGET_INFO[key] || { label: key, desc: '' }
     const visKey = key as keyof typeof DEFAULT_VISIBILITY
+
+    let borderLeftColor = 'var(--line-soft)'
+    if (section === 'general') borderLeftColor = 'var(--teal)'
+    else if (section === 'left') borderLeftColor = '#2563eb'
+    else if (section === 'right') borderLeftColor = '#7c3aed'
+
     return (
-      <div key={key} className="customizer-item" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 6, padding: '12px 10px' }}>
-        <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div className="item-drag-group" style={{ alignItems: 'flex-start' }}>
-            <div className="order-btns" style={{ marginTop: 2 }}>
-              <button 
-                type="button"
-                disabled={index === 0} 
-                onClick={() => handleMoveItem(section, index, 'up')}
-                className="order-btn"
-                title="Subir"
-              >▲</button>
-              <button 
-                type="button"
-                disabled={index === list.length - 1} 
-                onClick={() => handleMoveItem(section, index, 'down')}
-                className="order-btn"
-                title="Descer"
-              >▼</button>
-            </div>
-            <div>
-              <span className="item-label" style={{ display: 'block', lineHeight: '1.2' }}>{info.label}</span>
-              <span className="item-desc">{info.desc}</span>
-            </div>
-          </div>
-          <label className="switch" style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-            <input 
-              type="checkbox" 
-              checked={!!layoutVisibility[visKey]} 
-              onChange={() => handleToggleVisibility(visKey)} 
-            />
-            <span className="slider" />
-          </label>
+      <div 
+        key={key}
+        className="customizer-row-wrapper"
+        draggable
+        onDragStart={(e) => handleDragStart(e, section, index)}
+        onDragOver={(e) => handleDragOver(e, section, index)}
+        onDrop={(e) => handleDrop(e, section, index)}
+        onDragEnd={() => {
+          setDraggedItem(null)
+          setDragOverItem(null)
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          marginBottom: 8,
+          transition: 'all 0.2s'
+        }}
+      >
+        {/* Drag Handle (Outside the card) */}
+        <div 
+          className="drag-handle" 
+          style={{ cursor: 'grab', display: 'flex', flexDirection: 'column', gap: 3, padding: '12px 6px 12px 0', marginRight: 6, flexShrink: 0 }} 
+          title="Arraste para reordenar"
+        >
+          <div style={{ width: 12, height: 2, background: 'var(--muted)', borderRadius: 1, opacity: 0.6 }} />
+          <div style={{ width: 12, height: 2, background: 'var(--muted)', borderRadius: 1, opacity: 0.6 }} />
+          <div style={{ width: 12, height: 2, background: 'var(--muted)', borderRadius: 1, opacity: 0.6 }} />
         </div>
 
-        {/* Section choice selector buttons group */}
-        <div className="sec-choice-group" style={{ display: 'flex', gap: 6, marginTop: 4, width: '100%', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Posicionar:</span>
-          <button 
-            type="button"
-            className={`sec-choice-btn${section === 'general' ? ' active' : ''}`}
-            onClick={() => handleMoveSection(key, 'general')}
-          >Geral</button>
-          <button 
-            type="button"
-            className={`sec-choice-btn${section === 'left' ? ' active' : ''}`}
-            onClick={() => handleMoveSection(key, 'left')}
-          >Principal</button>
-          <button 
-            type="button"
-            className={`sec-choice-btn${section === 'right' ? ' active' : ''}`}
-            onClick={() => handleMoveSection(key, 'right')}
-          >Lateral</button>
+        {/* Customizer Card Item */}
+        <div 
+          className={`customizer-item${draggedItem?.section === section && draggedItem?.index === index ? ' dragging' : ''}`}
+          style={{ 
+            flex: 1,
+            display: 'flex',
+            alignItems: 'flex-start', 
+            flexDirection: 'column', 
+            gap: 6, 
+            padding: '12px 14px',
+            borderLeft: `4px solid ${borderLeftColor}`,
+            background: 'var(--surface)',
+            borderRadius: '14px',
+            border: '1px solid var(--line-soft)',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'all 0.2s',
+            minWidth: 0
+          }}
+        >
+          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+            <div className="item-drag-group" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+              {/* Up/Down buttons (keep them inside) */}
+              <div className="order-btns" style={{ display: 'flex', flexDirection: 'column', gap: 2, marginRight: 4, flexShrink: 0 }}>
+                <button 
+                  type="button"
+                  disabled={index === 0} 
+                  onClick={() => handleMoveItem(section, index, 'up')}
+                  className="order-btn"
+                  title="Subir"
+                >▲</button>
+                <button 
+                  type="button"
+                  disabled={index === list.length - 1} 
+                  onClick={() => handleMoveItem(section, index, 'down')}
+                  className="order-btn"
+                  title="Descer"
+                >▼</button>
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span className="item-label" style={{ display: 'block', lineHeight: '1.2' }}>{info.label}</span>
+                <span className="item-desc">{info.desc}</span>
+              </div>
+            </div>
+            <label className="switch" style={{ alignSelf: 'flex-start', marginTop: 2, flexShrink: 0 }}>
+              <input 
+                type="checkbox" 
+                checked={!!layoutVisibility[visKey]} 
+                onChange={() => handleToggleVisibility(visKey)} 
+              />
+              <span className="slider" />
+            </label>
+          </div>
+
+          {/* Section choice selector buttons group */}
+          <div className="sec-choice-group" style={{ display: 'flex', gap: 6, marginTop: 4, width: '100%', alignItems: 'center' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Posicionar:</span>
+            <button 
+              type="button"
+              className={`sec-choice-btn${section === 'general' ? ' active-general' : ''}`}
+              onClick={() => handleMoveSection(key, 'general')}
+            >Geral</button>
+            <button 
+              type="button"
+              className={`sec-choice-btn${section === 'left' ? ' active-left' : ''}`}
+              onClick={() => handleMoveSection(key, 'left')}
+            >Principal</button>
+            <button 
+              type="button"
+              className={`sec-choice-btn${section === 'right' ? ' active-right' : ''}`}
+              onClick={() => handleMoveSection(key, 'right')}
+            >Lateral</button>
+          </div>
         </div>
+      </div>
+    )
+  }
+
+  const renderCustomizerSectionItems = (section: 'general' | 'left' | 'right', order: string[]) => {
+    if (order.length === 0) {
+      return <p className="empty-msg" style={{ margin: '8px 12px', fontSize: 12 }}>Nenhum item nesta seção</p>
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+        {order.map((key, index) => {
+          const isDragOver = dragOverItem?.section === section && dragOverItem?.index === index
+          const isCurrentDragged = draggedItem?.section === section && draggedItem?.index === index
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+              {isDragOver && !isCurrentDragged && (
+                <div className="drag-placeholder" />
+              )}
+              {renderCustomizerItem(key, index, section, order)}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -1755,31 +1954,53 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
             </div>
             
             <div className="customizer-body">
-              <div className="customizer-section">
-                <h5>Área Superior (Geral)</h5>
-                {generalOrder.length === 0 ? (
-                  <p className="empty-msg" style={{ margin: '8px 12px', fontSize: 12 }}>Nenhum item nesta seção</p>
-                ) : (
-                  generalOrder.map((key, index) => renderCustomizerItem(key, index, 'general', generalOrder))
-                )}
+              {customizerError && (
+                <div className="customizer-error-banner" style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10
+                }}>
+                  <span>{customizerError}</span>
+                  <button type="button" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: '800' }} onClick={() => setCustomizerError(null)}>✕</button>
+                </div>
+              )}
+
+              <div 
+                className="customizer-section"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDropSection(e, 'general')}
+              >
+                <h5 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Área Superior (Geral)</span>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>(Máx. 1 card ativo)</span>
+                </h5>
+                {renderCustomizerSectionItems('general', generalOrder)}
               </div>
 
-              <div className="customizer-section">
+              <div 
+                className="customizer-section"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDropSection(e, 'left')}
+              >
                 <h5>Coluna Principal (Esquerda)</h5>
-                {leftOrder.length === 0 ? (
-                  <p className="empty-msg" style={{ margin: '8px 12px', fontSize: 12 }}>Nenhum item nesta seção</p>
-                ) : (
-                  leftOrder.map((key, index) => renderCustomizerItem(key, index, 'left', leftOrder))
-                )}
+                {renderCustomizerSectionItems('left', leftOrder)}
               </div>
 
-              <div className="customizer-section">
+              <div 
+                className="customizer-section"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDropSection(e, 'right')}
+              >
                 <h5>Coluna Lateral (Direita)</h5>
-                {rightOrder.length === 0 ? (
-                  <p className="empty-msg" style={{ margin: '8px 12px', fontSize: 12 }}>Nenhum item nesta seção</p>
-                ) : (
-                  rightOrder.map((key, index) => renderCustomizerItem(key, index, 'right', rightOrder))
-                )}
+                {renderCustomizerSectionItems('right', rightOrder)}
               </div>
             </div>
 

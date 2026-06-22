@@ -2119,10 +2119,88 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--ink);
 }
-.sec-choice-btn.active {
-  background: var(--teal-tint);
-  border-color: var(--teal);
-  color: var(--teal);
+.sec-choice-btn.active-general {
+  background: var(--teal) !important;
+  border-color: var(--teal) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(1, 88, 76, 0.25);
+}
+.sec-choice-btn.active-left {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+.sec-choice-btn.active-right {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+}
+
+/* Drag & Drop Styles in Customizer */
+.customizer-item.dragging {
+  opacity: 0.4;
+  border-style: dashed !important;
+  background: var(--surface-2) !important;
+  transform: scale(0.98);
+}
+.drag-handle:hover > div {
+  background: var(--teal) !important;
+  opacity: 1 !important;
+}
+.drag-handle:active {
+  cursor: grabbing !important;
+}
+
+/* Geral widget height adaptivity to match Hero card */
+.general-widget-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.general-widget-container > .card,
+.general-widget-container > .card-light {
+  height: 100% !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  justify-content: space-between !important;
+}
+.general-widget-container > .card-light .cal-grid {
+  flex: 1 !important;
+  align-content: space-around !important;
+}
+
+/* Customizer row dragging states */
+.customizer-row-wrapper.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+.customizer-row-wrapper.dragging .customizer-item {
+  border-style: dashed !important;
+  background: var(--surface-2) !important;
+}
+
+/* Landing spot placeholder indicator */
+.drag-placeholder {
+  height: 98px;
+  border: 2px dashed rgba(1, 88, 76, 0.25) !important;
+  background: rgba(1, 88, 76, 0.02) !important;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  width: 100%;
+  animation: pulse-placeholder 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse-placeholder {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
 }
 
 

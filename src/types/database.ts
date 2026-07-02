@@ -38,6 +38,14 @@ export interface Income {
   date: string
   is_recurring: boolean
   notes: string | null
+  tags: string[] | null
+  account_id?: string | null
+  installment_number?: number | null
+  installments_total?: number | null
+  payment_status?: boolean
+  received_at?: string | null
+  income_type?: 'fixed' | 'variable'
+  income_method?: 'pix' | 'transfer' | 'cash' | 'boleto' | 'deposit' | 'card' | 'other' | null
   created_at: string
   updated_at?: string
 }
@@ -60,7 +68,92 @@ export interface Expense {
   category: string
   description: string | null
   date: string
+  account_id?: string | null
+  credit_card_id?: string | null
+  installment_number?: number | null
+  installments_total?: number | null
+  payment_status?: boolean
+  paid_at?: string | null
+  payment_method?: 'pix' | 'debit' | 'cash' | 'transfer' | 'boleto' | 'other' | null
+  paid_account_id?: string | null
+  notes?: string | null
+  tags?: string[] | null
+  expense_type?: 'fixed' | 'variable'
   created_at: string
+}
+
+export interface Account {
+  id: string
+  user_id: string
+  name: string
+  type: 'corrente' | 'poupanca' | 'investimento' | 'carteira' | 'outros'
+  balance: number
+  initial_balance?: number
+  color: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreditCard {
+  id: string
+  user_id: string
+  name: string
+  limit: number
+  closing_day: number
+  due_day: number
+  color: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Transfer {
+  id: string
+  user_id: string
+  amount: number
+  source_account_id: string
+  destination_account_id: string
+  date: string
+  description: string | null
+  created_at: string
+}
+
+export interface Investment {
+  id: string
+  user_id: string
+  name: string
+  type: 'renda_fixa' | 'acoes' | 'fiis' | 'cripto' | 'fundos' | 'outros'
+  amount: number
+  yield_rate: number
+  date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ExpenseCategory {
+  id: string
+  user_id: string | null
+  name: string
+  color: string
+  icon: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface UserStreak {
+  id: string
+  user_id: string
+  current_streak: number
+  longest_streak: number
+  last_active_date: string
+  updated_at: string
+}
+
+export interface Achievement {
+  id: string
+  user_id: string
+  achievement_key: string
+  unlocked_at: string
 }
 
 export interface Goal {
@@ -107,12 +200,15 @@ export interface CategorySummary {
 
 export interface Transaction {
   id: string
-  type: 'income' | 'expense'
+  type: 'income' | 'expense' | 'transfer'
   name: string
   subtitle: string
   amount: number
   category: string
   date: string
+  account_id?: string | null
+  credit_card_id?: string | null
+  destination_account_id?: string | null
 }
 
 export interface DashboardData {
@@ -126,6 +222,13 @@ export interface DashboardData {
   goals: Goal[]
   financialProfile: FinancialProfile | null
   subscriptions: Subscription[]
+  accounts: Account[]
+  creditCards: (CreditCard & { currentInvoice: number })[]
+  investments: Investment[]
+  streaks: UserStreak | null
+  achievements: string[]
+  futureBalanceProjection?: { date: string; balance: number }[]
+  futureBalanceInsight?: string
 }
 
 // ---- Categorias disponíveis ----

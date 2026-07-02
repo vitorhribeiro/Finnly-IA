@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   LayoutGrid, Receipt, Target, TrendingUp, CreditCard, Sparkles,
   Settings, Bell, ArrowUp, ArrowDown, Eye, EyeOff, Wallet,
   PiggyBank, Car, Plane, Shield, Calendar, ChevronRight, ChevronLeft,
   Check, Trophy, Coffee, Film, Zap, UtensilsCrossed, SlidersHorizontal,
-  Calculator,
+  Calculator, Landmark, Mic, Flame, ArrowLeftRight, Sun, Moon, BarChart3, LogOut, Search, Menu
 } from 'lucide-react'
 import Image from 'next/image'
 import { Ring, Donut, Sparkline } from './Charts'
@@ -16,8 +16,14 @@ import { InfoTooltip } from './InfoTooltip'
 import { ReceitasSection } from './sections/ReceitasSection'
 import { DespesasSection } from './sections/DespesasSection'
 import { MetasSection } from './sections/MetasSection'
+import { ContasSection } from './sections/ContasSection'
+import { CartoesSection } from './sections/CartoesSection'
+import { InvestimentosSection } from './sections/InvestimentosSection'
+import { RelatoriosSection } from './sections/RelatoriosSection'
+import { processAIQuickEntry } from '@/app/dashboard/actions/ai-assistant'
+import { seedMockData } from '@/app/dashboard/actions/seed'
 import { createClient } from '@/utils/supabase/client'
-import type { DashboardData, Transaction, CategorySummary, Goal, Subscription } from '@/types/database'
+import type { DashboardData, Transaction, CategorySummary, Goal, Subscription, Account, CreditCard as CardType, Investment, UserStreak } from '@/types/database'
 import { CATEGORY_COLORS } from '@/types/database'
 
 // ============================================================ HELPERS
@@ -50,7 +56,8 @@ function Money({ v, cents = false, cur = true, hidden }: { v: number; cents?: bo
   )
 }
 
-function txIcon(category: string, type: 'income' | 'expense') {
+function txIcon(category: string, type: 'income' | 'expense' | 'transfer') {
+  if (type === 'transfer') return ArrowLeftRight
   if (type === 'income') return ArrowDown
   const map: Record<string, React.ElementType> = {
     Alimentação: UtensilsCrossed,
@@ -64,7 +71,8 @@ function txIcon(category: string, type: 'income' | 'expense') {
   return map[category] ?? ArrowUp
 }
 
-function txTint(category: string, type: 'income' | 'expense') {
+function txTint(category: string, type: 'income' | 'expense' | 'transfer') {
+  if (type === 'transfer') return 't-teal'
   if (type === 'income') return 't-green'
   const map: Record<string, string> = {
     Alimentação: 't-orange',
@@ -413,28 +421,399 @@ function CalendarWidget() {
   )
 }
 
-function CardsWidget() {
+function CardsWidget({ creditCards = [], hidden }: { creditCards: (CardType & { currentInvoice: number })[]; hidden: boolean }) {
   return (
-    <div className="card-light fade-up" style={{ position: 'relative', overflow: 'hidden', animationDelay: '50ms' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
-        <CreditCard size={18} /> Cartões
+    <section className="card fade-up">
+      <CardHead
+        Icon={CreditCard} tint="t-gold"
+        title="Cartões de Crédito"
+        right={<InfoTooltip text="Lista seus cartões de crédito cadastrados, o valor acumulado na fatura atual e o limite disponível." />}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {creditCards.length === 0 ? (
+          <p className="empty-msg" style={{ margin: 0 }}>Nenhum cartão de crédito cadastrado.</p>
+        ) : (
+          creditCards.map(c => {
+            const limitPct = Math.min(100, Math.round((c.currentInvoice / Number(c.limit)) * 100))
+            return (
+              <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8, borderBottom: '1px solid var(--line-soft)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color }} />
+                    <span style={{ fontWeight: 700, color: 'var(--teal-900)' }}>{c.name}</span>
+                  </div>
+                  <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontWeight: 800 }}>
+                    R$ {c.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="thermometer-bar-container" style={{ height: 6, margin: '4px 0' }}>
+                  <div className="thermometer-bar-fill" style={{ width: `${limitPct}%`, background: c.color }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
+                  <span>Vence dia {c.due_day}</span>
+                  <span>Limite R$ {Number(c.limit).toLocaleString('pt-BR')}</span>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
-      <div className="cards-stack">
-        <div className="card-layer card-layer-1">
-          XP
-        </div>
-        <div className="card-layer card-layer-2">
-          Nu
-        </div>
-        <div className="card-layer card-layer-3">
-          <span>Inter</span>
-          <span>R$ 450,00</span>
+    </section>
+  )
+}
+
+function AccountsWidget({ accounts = [], hidden }: { accounts: Account[]; hidden: boolean }) {
+  return (
+    <section className="card fade-up">
+      <CardHead
+        Icon={Landmark} tint="t-teal"
+        title="Contas e Bancos"
+        right={<InfoTooltip text="Consolida e lista os saldos de todas as suas contas bancárias, poupanças e carteiras de dinheiro físico." />}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {accounts.slice(0, 4).map(acc => {
+          const Icon = acc.type === 'poupanca' ? PiggyBank : acc.type === 'investimento' ? TrendingUp : Wallet
+          return (
+            <div key={acc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--line-soft)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: acc.color }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--teal-900)' }}>{acc.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'capitalize' }}>{acc.type}</div>
+                </div>
+              </div>
+              <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                R$ {acc.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function FutureBalanceWidget({ projection = [], insight = '', hidden }: { projection: { date: string; balance: number }[]; insight: string; hidden: boolean }) {
+  const points = (projection || []).map(p => p.balance)
+  const isAlert = insight.includes('🚨')
+
+  return (
+    <section className="card fade-up">
+      <CardHead
+        Icon={Calendar} tint="t-orange"
+        title="Projeção de Saldo (30d)"
+        right={<InfoTooltip text="Projeção preditiva gerada pela Inteligência Artificial nos próximos 30 dias com alertas automáticos se o caixa ficar devedor." />}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {points.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0', background: 'var(--surface-2)', borderRadius: 10 }}>
+            <Sparkline points={points} w={260} h={50} color={isAlert ? '#EF4444' : '#28A745'} fill={isAlert ? 'rgba(239,68,68,0.1)' : 'rgba(40,167,69,0.1)'} />
+          </div>
+        )}
+        <div style={{
+          fontSize: 12,
+          lineHeight: 1.4,
+          padding: '10px 12px',
+          borderRadius: 8,
+          background: isAlert ? 'rgba(239,68,68,0.1)' : 'var(--teal-tint)',
+          color: isAlert ? '#EF4444' : 'var(--teal-900)',
+          fontWeight: 600
+        }}>
+          {insight || 'Projeção estável para os próximos 30 dias.'}
         </div>
       </div>
-      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(2px)', zIndex: 10 }}>
-        <span style={{ background: '#0b0c10', color: '#fff', padding: '6px 14px', borderRadius: 20, fontWeight: 800, fontSize: 13 }}>Em breve</span>
+    </section>
+  )
+}
+
+function StreaksWidget({ streak, achievements = [] }: { streak: UserStreak | null; achievements: string[] }) {
+  const currentStreak = streak?.current_streak ?? 1
+  const longestStreak = streak?.longest_streak ?? 1
+
+  const allAchievements = [
+    { key: 'primeiro_passo', label: 'Primeiro Passo', desc: 'Fez o primeiro lançamento no app', icon: '⭐️', color: '#FFB300' },
+    { key: 'escudo_ativo', label: 'Reserva Ativa', desc: 'Reserva de emergência preenchida', icon: '🛡️', color: '#0288D1' },
+    { key: 'investidor', label: 'Investidor', desc: 'Primeiro ativo na carteira', icon: '🚀', color: '#7B1FA2' },
+    { key: 'foco_semanal', label: 'Foco Semanal', desc: 'Manteve 7 dias de ofensiva', icon: '🔥', color: '#F57C00' },
+  ]
+
+  const userBadges = allAchievements.filter(a => achievements.includes(a.key))
+
+  return (
+    <section className="card fade-up">
+      <CardHead
+        Icon={Trophy} tint="t-gold"
+        title="Ofensiva & Conquistas"
+        right={<InfoTooltip text="Mostra sua consistência diária de uso no aplicativo e as medalhas comportamentais desbloqueadas pelas suas conquistas financeiras." />}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 12 }}>
+          <span style={{ fontSize: 28 }}>🔥</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--teal-900)' }}>
+              Ofensiva de {currentStreak} {currentStreak === 1 ? 'dia' : 'dias'}!
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+              Recorde atual: {longestStreak} dias seguidos.
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>Medalhas ({userBadges.length}/{allAchievements.length})</div>
+          {userBadges.length === 0 ? (
+            <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Nenhuma medalha conquistada. Faça lançamentos para liberar!</p>
+          ) : (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {userBadges.map(b => (
+                <div key={b.key} title={b.desc} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: b.color + '15', border: `1px solid ${b.color}30`,
+                  borderRadius: 10, padding: '3px 6px', fontSize: 10.5, fontWeight: 700, color: b.color
+                }}>
+                  <span>{b.icon}</span>
+                  <span>{b.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
+  )
+}
+
+function IAQuickLogger({ onRefresh }: { onRefresh: () => void }) {
+  const [inputValue, setInputValue] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [feedback, setFeedback] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition()
+        rec.continuous = false
+        rec.lang = 'pt-BR'
+        rec.interimResults = false
+
+        rec.onstart = () => setIsListening(true)
+        rec.onend = () => setIsListening(false)
+        rec.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          setInputValue(transcript)
+        }
+        rec.onerror = () => setIsListening(false)
+
+        recognitionRef.current = rec
+      }
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("O reconhecimento de voz por navegador não é suportado pelo seu dispositivo atual.")
+      return
+    }
+    if (isListening) {
+      recognitionRef.current.stop()
+    } else {
+      recognitionRef.current.start()
+    }
+  }
+
+  const handleProcess = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inputValue.trim()) return
+    setStatus('loading')
+    setFeedback('')
+
+    const res = await processAIQuickEntry(inputValue)
+    if (res.error) {
+      setStatus('error')
+      setFeedback(res.error)
+    } else {
+      setStatus('success')
+      setFeedback(res.feedback || 'Lançamento efetuado!')
+      setInputValue('')
+      setTimeout(() => {
+        setStatus('idle')
+        setFeedback('')
+      }, 7000)
+      onRefresh()
+    }
+  }
+
+  const suggestions = [
+    { text: "Recebi Pix de 1500 de salário" },
+    { text: "Gastei 55 reais no Posto Ipiranga" },
+    { text: "Lanche de 42 reais no cartão Nu" }
+  ]
+
+  return (
+    <>
+      <style>{`
+        .ia-card {
+          background: rgba(1, 107, 76, 0.015);
+          border: 1px solid rgba(1, 107, 76, 0.12);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.01);
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+        .ia-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; height: 3px;
+          background: linear-gradient(90deg, var(--primary), #FFB300, var(--accent));
+        }
+        .ia-card:hover {
+          border-color: rgba(1, 107, 76, 0.25);
+          box-shadow: 0 10px 30px rgba(1, 107, 76, 0.05);
+        }
+        .mic-btn {
+          transition: all 0.3s ease;
+        }
+        .mic-btn.listening {
+          background: #F57C00 !important;
+          color: #fff !important;
+          animation: mic-glow-animation 1.5s infinite alternate;
+        }
+        @keyframes mic-glow-animation {
+          from { box-shadow: 0 0 4px #F57C00, 0 0 10px rgba(245, 124, 0, 0.4); transform: scale(1); }
+          to { box-shadow: 0 0 14px #F57C00, 0 0 24px rgba(245, 124, 0, 0.7); transform: scale(1.08); }
+        }
+        .suggestion-chip {
+          background: var(--surface-2);
+          border: 1px solid var(--border);
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        .suggestion-chip:hover {
+          background: var(--teal-tint);
+          border-color: var(--ring);
+          transform: translateY(-1px);
+        }
+      `}</style>
+      <section className="card ia-card fade-up" style={{ marginBottom: '20px', padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 13.5, color: 'var(--foreground)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: 'rgba(1, 107, 76, 0.08)', color: 'var(--primary)' }}>
+              <Sparkles size={13} />
+            </span>
+            Lançamento Rápido por Inteligência Artificial
+          </div>
+          <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 8px', borderRadius: 20, background: 'rgba(1, 107, 76, 0.08)', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Finnly IA
+          </span>
+        </div>
+
+        <form onSubmit={handleProcess} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              placeholder="Fale ou digite: 'Pix de 1500 de salário' ou 'Almoço de 35 reais no cartão'..."
+              className="ob-input"
+              style={{
+                flex: 1,
+                height: 44,
+                paddingRight: 45,
+                background: 'var(--background)',
+                border: '1.5px solid var(--border)',
+                borderRadius: 22,
+                fontSize: 13,
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.01)'
+              }}
+              disabled={status === 'loading'}
+            />
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`mic-btn icon-btn${isListening ? ' listening' : ''}`}
+              style={{
+                position: 'absolute',
+                right: 8,
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: 'var(--secondary)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer'
+              }}
+              title={isListening ? "Parar de ouvir" : "Falar lançamento por voz"}
+            >
+              <Mic size={14} />
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={status === 'loading' || !inputValue.trim()}
+            style={{
+              height: 44,
+              borderRadius: 22,
+              padding: '0 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, var(--primary), #004d40)',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'white',
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(1, 107, 76, 0.15)'
+            }}
+          >
+            {status === 'loading' ? 'Processando...' : 'Lançar'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--muted-foreground)' }}>Sugestões rápidas:</span>
+          {suggestions.map((s, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="suggestion-chip"
+              onClick={() => setInputValue(s.text)}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: 20,
+                color: 'var(--foreground)'
+              }}
+            >
+              {s.text}
+            </button>
+          ))}
+        </div>
+
+        {feedback && (
+          <div style={{
+            marginTop: 14,
+            padding: '10px 14px',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 700,
+            background: status === 'success' ? 'rgba(40,167,69,0.06)' : 'rgba(239,68,68,0.06)',
+            color: status === 'success' ? '#28A745' : '#EF4444',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}>
+            {status === 'success' ? '✅' : '❌'} {feedback}
+          </div>
+        )}
+      </section>
+    </>
   )
 }
 
@@ -745,15 +1124,18 @@ const DEFAULT_VISIBILITY = {
   score: true,
   goals: true,
   idleCash: false,
-  cards: false,
+  cards: true,
   calendar: false,
   emergencyFund: true,
   subscriptions: true,
+  accounts: true,
+  futureBalance: true,
+  streaks: true,
 }
 
 const DEFAULT_GENERAL_ORDER = ['calendar']
-const DEFAULT_LEFT_ORDER = ['budget', 'subscriptions', 'transactions', 'categories']
-const DEFAULT_RIGHT_ORDER = ['score', 'emergencyFund', 'goals', 'idleCash', 'cards']
+const DEFAULT_LEFT_ORDER = ['budget', 'subscriptions', 'transactions', 'categories', 'accounts', 'streaks']
+const DEFAULT_RIGHT_ORDER = ['score', 'emergencyFund', 'goals', 'idleCash', 'cards', 'futureBalance']
 
 const WIDGET_INFO: Record<string, { label: string; desc: string }> = {
   calendar: {
@@ -793,8 +1175,147 @@ const WIDGET_INFO: Record<string, { label: string; desc: string }> = {
     desc: 'Recomendações e insights da Inteligência Artificial sobre como otimizar ou investir saldos parados.'
   },
   cards: {
+    label: 'Cartões de Crédito',
+    desc: 'Resumo focado dos limites e faturas dos seus cartões de crédito cadastrados.'
+  },
+  accounts: {
+    label: 'Contas e Bancos',
+    desc: 'Lista detalhada de contas correntes, poupanças e carteiras de dinheiro com seus saldos atuais.'
+  },
+  futureBalance: {
+    label: 'Previsão de Saldo (IA)',
+    desc: 'Projeção inteligente do seu saldo futuro para os próximos 30 dias com alertas de caixa.'
+  },
+  streaks: {
+    label: 'Desafios e Ofensiva',
+    desc: 'Rastreador de disciplina diária (streak) e medalhas de conquistas financeiras desbloqueadas.'
+  }
+}
+
+const WIDGET_SKETCHES: Record<string, { label: string; icon: React.ElementType; color: string; content: React.ReactNode }> = {
+  calendar: {
+    label: 'Calendário',
+    icon: Calendar,
+    color: '#016B4C',
+    content: (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, width: 34, height: 14 }}>
+        {[...Array(10)].map((_, i) => (
+          <span key={i} style={{ display: 'block', height: 4, background: 'var(--border)', borderRadius: 1 }} />
+        ))}
+      </div>
+    )
+  },
+  budget: {
+    label: 'Planejador',
+    icon: TrendingUp,
+    color: '#28A745',
+    content: (
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, width: 45, overflow: 'hidden' }}>
+        <i style={{ display: 'block', width: '70%', height: '100%', background: '#28A745' }} />
+      </div>
+    )
+  },
+  categories: {
+    label: 'Categorias',
+    icon: Zap,
+    color: '#F57C00',
+    content: (
+      <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+        <span style={{ width: 14, height: 5, background: '#F57C00', borderRadius: 2 }} />
+        <span style={{ width: 8, height: 5, background: '#FFB300', borderRadius: 2 }} />
+      </div>
+    )
+  },
+  transactions: {
+    label: 'Transações',
+    icon: Receipt,
+    color: '#016B4C',
+    content: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 40 }}>
+        <span style={{ height: 3, background: 'var(--border)', borderRadius: 1 }} />
+        <span style={{ height: 3, background: 'var(--border)', borderRadius: 1 }} />
+      </div>
+    )
+  },
+  subscriptions: {
+    label: 'Contas Fixas',
+    icon: Film,
+    color: '#EF4444',
+    content: (
+      <div style={{ display: 'flex', gap: 3 }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#EF4444' }} />
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#28A745' }} />
+      </div>
+    )
+  },
+  score: {
+    label: 'Score',
+    icon: Trophy,
+    color: '#FFB300',
+    content: (
+      <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #FFB300', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 7, fontWeight: 900, color: '#FFB300' }}>85</span>
+      </div>
+    )
+  },
+  goals: {
+    label: 'Metas',
+    icon: Target,
+    color: '#FFB300',
+    content: (
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, width: 40, overflow: 'hidden' }}>
+        <i style={{ display: 'block', width: '50%', height: '100%', background: '#FFB300' }} />
+      </div>
+    )
+  },
+  emergencyFund: {
+    label: 'Reserva',
+    icon: Shield,
+    color: '#016B4C',
+    content: (
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, width: 35, overflow: 'hidden' }}>
+        <i style={{ display: 'block', width: '80%', height: '100%', background: '#016B4C' }} />
+      </div>
+    )
+  },
+  idleCash: {
+    label: 'IA Otimização',
+    icon: Sparkles,
+    color: '#016B4C',
+    content: <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--primary)' }}>✨ IA</span>
+  },
+  cards: {
     label: 'Cartões',
-    desc: 'Resumo visual das faturas, limites disponíveis e vencimento dos seus cartões de crédito.'
+    icon: CreditCard,
+    color: '#FFB300',
+    content: <div style={{ width: 22, height: 13, borderRadius: 2, border: '1px solid var(--border)', background: 'var(--surface-3)', position: 'relative' }}><span style={{ position: 'absolute', top: 3, left: 3, width: 4, height: 3, background: 'var(--border)' }} /></div>
+  },
+  accounts: {
+    label: 'Contas',
+    icon: Landmark,
+    color: '#016B4C',
+    content: (
+      <div style={{ display: 'flex', gap: 3 }}>
+        <span style={{ width: 14, height: 6, background: 'var(--border)', borderRadius: 1 }} />
+        <span style={{ width: 14, height: 6, background: 'var(--border)', borderRadius: 1 }} />
+      </div>
+    )
+  },
+  futureBalance: {
+    label: 'Previsão IA',
+    icon: Calendar,
+    color: '#F57C00',
+    content: (
+      <div style={{ width: 40, height: 12, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+        <span style={{ width: 3, height: 4, background: 'var(--border)' }} /><span style={{ width: 3, height: 8, background: 'var(--border)' }} /><span style={{ width: 3, height: 11, background: '#28A745' }} />
+      </div>
+    )
+  },
+  streaks: {
+    label: 'Ofensiva',
+    icon: Flame,
+    color: '#F57C00',
+    content: <span style={{ fontSize: 9, fontWeight: 900, color: '#F57C00' }}>🔥 5d</span>
   }
 }
 
@@ -812,6 +1333,7 @@ function HomeView({
   onPopulateSamples: () => Promise<void>
   onAddSubscription: (name: string, amount: number, dueDay: number, category: string) => Promise<void>
 }) {
+  const router = useRouter()
   const [barsReady, setBarsReady] = useState(false)
   useEffect(() => { const t = setTimeout(() => setBarsReady(true), 50); return () => clearTimeout(t) }, [])
 
@@ -909,7 +1431,13 @@ function HomeView({
           />
         )
       case 'cards':
-        return <CardsWidget key={key} />
+        return <CardsWidget key={key} creditCards={data.creditCards} hidden={hidden} />
+      case 'accounts':
+        return <AccountsWidget key={key} accounts={data.accounts} hidden={hidden} />
+      case 'futureBalance':
+        return <FutureBalanceWidget key={key} projection={data.futureBalanceProjection || []} insight={data.futureBalanceInsight || ''} hidden={hidden} />
+      case 'streaks':
+        return <StreaksWidget key={key} streak={data.streaks} achievements={data.achievements || []} />
       case 'idleCash':
         return <IdleCashWidget key={key} savings={monthlySavings} hidden={hidden} onAsk={onAsk} />
       case 'score':
@@ -1072,6 +1600,9 @@ function HomeView({
         )}
       </div>
 
+      {/* IA VOICE/TEXT QUICK LOGGER */}
+      <IAQuickLogger onRefresh={() => router.refresh()} />
+
       {/* KPIs */}
       <div className="fd-grid">
         <div className="col-3">
@@ -1162,13 +1693,15 @@ function EmptyState({ label }: { label: string }) {
 // ============================================================ MAIN APP
 
 const NAV = [
-  { id: 'home', Icon: LayoutGrid, label: 'Visão geral' },
-  { id: 'receitas', Icon: ArrowDown, label: 'Receitas' },
-  { id: 'despesas', Icon: ArrowUp, label: 'Despesas' },
-  { id: 'goals', Icon: Target, label: 'Metas' },
-  { id: 'invest', Icon: TrendingUp, label: 'Investimentos' },
-  { id: 'cards', Icon: CreditCard, label: 'Cartões' },
-  { id: 'ai', Icon: Sparkles, label: 'Finnly IA' },
+  { id: 'home', Icon: LayoutGrid, label: 'Visão geral', group: 'Principal' },
+  { id: 'receitas', Icon: ArrowDown, label: 'Receitas', group: 'Principal' },
+  { id: 'despesas', Icon: ArrowUp, label: 'Despesas', group: 'Principal' },
+  { id: 'accounts', Icon: Landmark, label: 'Contas', group: 'Principal' },
+  { id: 'cards', Icon: CreditCard, label: 'Cartões', group: 'Principal' },
+  { id: 'invest', Icon: TrendingUp, label: 'Investimentos', group: 'Planejamento' },
+  { id: 'goals', Icon: Target, label: 'Metas', group: 'Planejamento' },
+  { id: 'reports', Icon: BarChart3, label: 'Relatórios', group: 'Planejamento' },
+  { id: 'ai', Icon: Sparkles, label: 'Finnly IA', group: 'Especial' },
 ]
 
 
@@ -1186,11 +1719,20 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
   const [active, setActive] = useState('home')
   const [hidden, setHidden] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const [chat, setChat] = useState<{ seed: string | null } | null>(null)
   const [bell, setBell] = useState(false)
   const [askVal, setAskVal] = useState('')
   const bellRef = useRef<HTMLDivElement>(null)
   const [isPending, startTransition] = useTransition()
+
+  const toggleSidebar = () => {
+    setIsTransitioning(true)
+    setSidebarOpen(prev => !prev)
+    setTimeout(() => {
+      setIsTransitioning(false)
+    }, 300)
+  }
   
   const [customizing, setCustomizing] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -1201,6 +1743,7 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
   const [draggedItem, setDraggedItem] = useState<{ section: 'general' | 'left' | 'right'; index: number } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<{ section: 'general' | 'left' | 'right'; index: number } | null>(null)
   const [customizerError, setCustomizerError] = useState<string | null>(null)
+
 
   const handleCloseCustomizer = () => {
     setIsClosing(true)
@@ -1446,18 +1989,20 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
 
     if (currentSection === targetSection) return
 
-    // Limit check for General area: block and show error banner
-    if (targetSection === 'general' && generalOrder.length >= 1) {
-      setCustomizerError('A área superior (Geral) suporta no máximo 1 card. Remova ou mova o card atual primeiro.')
-      setTimeout(() => setCustomizerError(null), 4000)
-      return
-    }
-
-    const nextGeneral = generalOrder.filter(x => x !== key)
+    let nextGeneral = generalOrder.filter(x => x !== key)
     const nextLeft = leftOrder.filter(x => x !== key)
     const nextRight = rightOrder.filter(x => x !== key)
+    let nextVis = { ...layoutVisibility }
 
     if (targetSection === 'general') {
+      if (generalOrder.length > 0) {
+        generalOrder.forEach(oldKey => {
+          if (oldKey !== key) {
+            nextVis = { ...nextVis, [oldKey as keyof typeof layoutVisibility]: false }
+          }
+        })
+        nextGeneral = []
+      }
       nextGeneral.push(key)
     } else if (targetSection === 'left') {
       nextLeft.push(key)
@@ -1465,10 +2010,43 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
       nextRight.push(key)
     }
 
+    setLayoutVisibility(nextVis)
     setGeneralOrder(nextGeneral)
     setLeftOrder(nextLeft)
     setRightOrder(nextRight)
-    await saveLayout(layoutVisibility, nextGeneral, nextLeft, nextRight)
+    await saveLayout(nextVis, nextGeneral, nextLeft, nextRight)
+  }
+
+  const handleUpdateWidgetPosition = async (key: string, position: 'hidden' | 'general' | 'left' | 'right') => {
+    const isVisible = position !== 'hidden'
+    let nextVis = { ...layoutVisibility, [key as keyof typeof layoutVisibility]: isVisible }
+
+    let nextGeneral = generalOrder.filter(x => x !== key)
+    const nextLeft = leftOrder.filter(x => x !== key)
+    const nextRight = rightOrder.filter(x => x !== key)
+
+    if (position === 'general') {
+      if (generalOrder.length > 0) {
+        generalOrder.forEach(oldKey => {
+          if (oldKey !== key) {
+            nextVis = { ...nextVis, [oldKey as keyof typeof layoutVisibility]: false }
+          }
+        })
+        nextGeneral = []
+      }
+      nextGeneral.push(key)
+    } else if (position === 'left') {
+      nextLeft.push(key)
+    } else if (position === 'right') {
+      nextRight.push(key)
+    }
+
+    setLayoutVisibility(nextVis)
+    setGeneralOrder(nextGeneral)
+    setLeftOrder(nextLeft)
+    setRightOrder(nextRight)
+
+    await saveLayout(nextVis, nextGeneral, nextLeft, nextRight)
   }
 
   const handleTogglePaid = async (sub: Subscription) => {
@@ -1703,45 +2281,59 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
   }
 
   return (
-    <div className={`app ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app ${!sidebarOpen ? 'sidebar-collapsed' : ''} ${isTransitioning ? 'sidebar-transitioning' : ''}`}>
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
-            <Image src="/images/logosemfundo.png" alt="Finnly" width={54} height={54} style={{ objectFit: 'contain' }} />
+          <div className="brand-inner">
+            <div className="brand-mark" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
+              <Image src="/images/logosemfundo.png" alt="Finnly" width={36} height={36} style={{ objectFit: 'contain' }} />
+            </div>
+            <div className="brand-name">Finn<b>ly</b></div>
           </div>
-          <div className="brand-name">Finn<b>ly</b></div>
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} title="Alternar menu">
-            {sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          <button className="sidebar-toggle" onClick={toggleSidebar} title="Alternar menu">
+            <Menu size={20} strokeWidth={2.5} />
           </button>
         </div>
 
-        <div className="nav-label">Menu</div>
-        {NAV.map(n => (
-          <button
-            key={n.id}
-            className={`nav-item${active === n.id ? ' active' : ''}`}
-            onClick={() => setActive(n.id)}
-          >
-            <n.Icon size={20} />
-            <span>{n.label}</span>
-          </button>
-        ))}
+        <div className="sidebar-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: 8 }}>
+          <div className="sidebar-search has-tooltip">
+            <Search size={18} className="search-icon" />
+            <input type="text" placeholder="Buscar..." />
+            <div className="tooltip">Buscar</div>
+          </div>
+          {NAV.map((n, idx) => {
+            const showGroup = n.group && (!NAV[idx - 1] || NAV[idx - 1].group !== n.group)
 
-        <div className="nav-spacer" />
+            return (
+              <React.Fragment key={n.id}>
+                {showGroup && (
+                  <div className="nav-label">{n.group}</div>
+                )}
+                <button
+                  className={`nav-item has-tooltip${active === n.id ? ' active' : ''}${n.id === 'ai' ? ' special' : ''}`}
+                  onClick={() => setActive(n.id)}
+                >
+                  <n.Icon size={18} strokeWidth={active === n.id ? 2.5 : 2} />
+                  <span>{n.label}</span>
+                  <div className="tooltip">{n.label}</div>
+                </button>
+              </React.Fragment>
+            )
+          })}
+        </div>
 
-
-        <button className="nav-item" onClick={() => signOut()}>
-          <Settings size={20} />
-          <span>Sair</span>
-        </button>
-
-        <div className="side-card">
+        <div className="side-card has-tooltip">
           <div className="av">{userInitial}</div>
-          <div>
+          <div className="user-info">
             <div className="nm">{userName}</div>
             <div className="pl">Plano Pessoal</div>
           </div>
+          <div className="tooltip">{userName}</div>
+          <button className="logout-btn has-tooltip" onClick={() => signOut()} title="Sair">
+            <LogOut size={20} />
+            <div className="tooltip">Sair</div>
+          </button>
         </div>
       </aside>
 
@@ -1891,7 +2483,11 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
               )}
               {active === 'receitas' && <ReceitasSection hidden={hidden} onAsk={openChat} />}
               {active === 'despesas' && <DespesasSection hidden={hidden} />}
+              {active === 'accounts' && <ContasSection hidden={hidden} />}
+              {active === 'cards' && <CartoesSection hidden={hidden} />}
+              {active === 'invest' && <InvestimentosSection hidden={hidden} />}
               {active === 'goals' && <MetasSection hidden={hidden} />}
+              {active === 'reports' && <RelatoriosSection dashboardData={dashboardData} hidden={hidden} />}
               {active === 'ai' && (
                 <div className="card empty-state fade-up" style={{ cursor: 'pointer' }} onClick={() => openChat()}>
                   <div className="t-cream" style={{ width: 64, height: 64, borderRadius: 18, display: 'grid', placeItems: 'center', margin: '0 auto 18px' }}>
@@ -1904,7 +2500,6 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
                   </button>
                 </div>
               )}
-              {(active === 'invest' || active === 'cards') && <EmptyState label={activeLabel} />}
             </div>
           </div>
         </div>
@@ -1916,7 +2511,7 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
           { id: 'home',     Icon: LayoutGrid, label: 'Início'    },
           { id: 'receitas', Icon: ArrowDown,  label: 'Receitas'  },
           { id: 'despesas', Icon: ArrowUp,    label: 'Despesas'  },
-          { id: 'goals',    Icon: Target,     label: 'Metas'     },
+          { id: 'accounts', Icon: Landmark,   label: 'Contas'    },
         ] as const).map(n => (
           <button
             key={n.id}
@@ -1940,11 +2535,10 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
       {/* CHAT DRAWER */}
       {chat && <ChatDrawer seed={chat.seed} onClose={() => setChat(null)} />}
 
-      {/* CUSTOMIZER MODAL */}
       {customizing && (
         <>
           <div className={`customizer-overlay${isClosing ? ' closing' : ''}`} onClick={handleCloseCustomizer} />
-          <div className={`customizer-modal card fade-up${isClosing ? ' closing' : ''}`}>
+          <div className={`customizer-modal card fade-up${isClosing ? ' closing' : ''}`} style={{ maxWidth: 880, width: '95%', maxHeight: '90vh' }}>
             <div className="customizer-header">
               <div>
                 <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--teal-900)' }}>Personalizar Visão Geral</h4>
@@ -1953,9 +2547,10 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
               <button className="customizer-close" onClick={handleCloseCustomizer}>✕</button>
             </div>
             
-            <div className="customizer-body">
+            <div className="customizer-body" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
               {customizerError && (
                 <div className="customizer-error-banner" style={{
+                  width: '100%',
                   background: 'rgba(239, 68, 68, 0.1)',
                   border: '1px solid rgba(239, 68, 68, 0.2)',
                   color: '#ef4444',
@@ -1973,42 +2568,265 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
                 </div>
               )}
 
-              <div 
-                className="customizer-section"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleDropSection(e, 'general')}
-              >
-                <h5 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Área Superior (Geral)</span>
-                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>(Máx. 1 card ativo)</span>
-                </h5>
-                {renderCustomizerSectionItems('general', generalOrder)}
+              {/* PAINEL ESQUERDO: LISTA DE CARDS DISPONÍVEIS */}
+              <div style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 10, borderRight: '1px solid var(--line-soft)', paddingRight: 12, minWidth: 280 }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 900, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5 }}>Cards Disponíveis</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1, maxHeight: '50vh', paddingRight: 4 }}>
+                  {Object.entries(WIDGET_INFO).map(([key, info]) => {
+                    const visKey = key as keyof typeof DEFAULT_VISIBILITY
+                    const isVisible = !!layoutVisibility[visKey]
+                    const currentSection = generalOrder.includes(key)
+                      ? 'general'
+                      : leftOrder.includes(key)
+                        ? 'left'
+                        : 'right'
+
+                    const currentPos = !isVisible ? 'hidden' : currentSection
+                    const sketch = WIDGET_SKETCHES[key]
+                    const Icon = sketch?.icon || Target
+
+                    return (
+                      <div key={key} style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: (sketch?.color || 'var(--primary)') + '15', color: sketch?.color || 'var(--primary)' }}>
+                              <Icon size={12} />
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-900)' }}>{info.label}</span>
+                          </div>
+                          
+                          {/* BOTÕES DE POSICIONAMENTO RÁPIDO */}
+                          <div style={{ display: 'flex', gap: 3 }}>
+                            <button
+                              type="button"
+                              title="Superior (Geral)"
+                              onClick={() => handleUpdateWidgetPosition(key, 'general')}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: '1px solid ' + (currentPos === 'general' ? '#FFB300' : 'var(--border)'),
+                                background: currentPos === 'general' ? 'rgba(255, 179, 0, 0.12)' : 'var(--surface)',
+                                color: currentPos === 'general' ? '#C68A00' : 'var(--muted)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Topo
+                            </button>
+                            <button
+                              type="button"
+                              title="Coluna Esquerda"
+                              onClick={() => handleUpdateWidgetPosition(key, 'left')}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: '1px solid ' + (currentPos === 'left' ? '#2563eb' : 'var(--border)'),
+                                background: currentPos === 'left' ? 'rgba(37, 99, 235, 0.12)' : 'var(--surface)',
+                                color: currentPos === 'left' ? '#2563eb' : 'var(--muted)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Esq
+                            </button>
+                            <button
+                              type="button"
+                              title="Coluna Direita"
+                              onClick={() => handleUpdateWidgetPosition(key, 'right')}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: '1px solid ' + (currentPos === 'right' ? '#7c3aed' : 'var(--border)'),
+                                background: currentPos === 'right' ? 'rgba(124, 58, 237, 0.12)' : 'var(--surface)',
+                                color: currentPos === 'right' ? '#7c3aed' : 'var(--muted)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Dir
+                            </button>
+                            <button
+                              type="button"
+                              title="Ocultar Card"
+                              onClick={() => handleUpdateWidgetPosition(key, 'hidden')}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: '1px solid ' + (currentPos === 'hidden' ? 'red' : 'var(--border)'),
+                                background: currentPos === 'hidden' ? 'rgba(239, 68, 68, 0.08)' : 'var(--surface)',
+                                color: currentPos === 'hidden' ? 'red' : 'var(--muted)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.3 }}>{info.desc}</p>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
-              <div 
-                className="customizer-section"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleDropSection(e, 'left')}
-              >
-                <h5>Coluna Principal (Esquerda)</h5>
-                {renderCustomizerSectionItems('left', leftOrder)}
+              {/* PAINEL DIREITO: ESBOÇO VISUAL DO PAINEL */}
+              <div style={{ flex: '1 2 440px', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 320 }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 900, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5 }}>Layout do Painel (Esboço)</h4>
+                
+                <div style={{
+                  background: 'var(--surface)',
+                  border: '2px dashed var(--border)',
+                  borderRadius: 16,
+                  padding: 14,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  overflowY: 'auto',
+                  flex: 1,
+                  maxHeight: '50vh'
+                }}>
+                  {/* MOCKUP AREA SUPERIOR */}
+                  <div style={{
+                    background: 'rgba(1, 107, 76, 0.03)',
+                    border: '1px solid rgba(1, 107, 76, 0.15)',
+                    borderRadius: 12,
+                    padding: 10
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>Área Superior (Geral)</div>
+                    {generalOrder.length === 0 ? (
+                      <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>Nenhum card ativo no topo</p>
+                    ) : (
+                      generalOrder.map((key) => {
+                        const sketch = WIDGET_SKETCHES[key]
+                        const Icon = sketch?.icon || Target
+                        return (
+                          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--background)', padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: (sketch?.color || 'var(--primary)') + '15', color: sketch?.color || 'var(--primary)' }}>
+                                <Icon size={12} />
+                              </span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--teal-900)' }}>{sketch?.label || key}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {sketch?.content}
+                              <button type="button" onClick={() => handleUpdateWidgetPosition(key, 'hidden')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)', fontWeight: 800 }}>✕</button>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {/* MOCKUP DUAS COLUNAS */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    
+                    {/* COLUNA ESQUERDA */}
+                    <div style={{
+                      flex: '1 1 200px',
+                      background: 'rgba(37, 99, 235, 0.03)',
+                      border: '1px solid rgba(37, 99, 235, 0.12)',
+                      borderRadius: 12,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      minWidth: 150
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', marginBottom: 2, textTransform: 'uppercase' }}>Coluna Esquerda</div>
+                      {leftOrder.length === 0 ? (
+                        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>Sem cards</p>
+                      ) : (
+                        leftOrder.map((key, idx) => {
+                          const sketch = WIDGET_SKETCHES[key]
+                          const Icon = sketch?.icon || Target
+                          return (
+                            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--background)', padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', fontSize: 8, lineHeight: 1, color: 'var(--muted)', flexShrink: 0 }}>
+                                  <button type="button" disabled={idx === 0} onClick={() => handleMoveItem('left', idx, 'up')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>▲</button>
+                                  <button type="button" disabled={idx === leftOrder.length - 1} onClick={() => handleMoveItem('left', idx, 'down')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>▼</button>
+                                </div>
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 6, background: (sketch?.color || 'var(--primary)') + '15', color: sketch?.color || 'var(--primary)', flexShrink: 0 }}>
+                                  <Icon size={11} />
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sketch?.label || key}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                {sketch?.content}
+                                <button type="button" onClick={() => handleUpdateWidgetPosition(key, 'hidden')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)', fontWeight: 800 }}>✕</button>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+
+                    {/* COLUNA DIREITA */}
+                    <div style={{
+                      flex: '1 1 200px',
+                      background: 'rgba(124, 58, 237, 0.03)',
+                      border: '1px solid rgba(124, 58, 237, 0.12)',
+                      borderRadius: 12,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      minWidth: 150
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed', marginBottom: 2, textTransform: 'uppercase' }}>Coluna Direita</div>
+                      {rightOrder.length === 0 ? (
+                        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>Sem cards</p>
+                      ) : (
+                        rightOrder.map((key, idx) => {
+                          const sketch = WIDGET_SKETCHES[key]
+                          const Icon = sketch?.icon || Target
+                          return (
+                            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--background)', padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', fontSize: 8, lineHeight: 1, color: 'var(--muted)', flexShrink: 0 }}>
+                                  <button type="button" disabled={idx === 0} onClick={() => handleMoveItem('right', idx, 'up')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>▲</button>
+                                  <button type="button" disabled={idx === rightOrder.length - 1} onClick={() => handleMoveItem('right', idx, 'down')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>▼</button>
+                                </div>
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 6, background: (sketch?.color || 'var(--primary)') + '15', color: sketch?.color || 'var(--primary)', flexShrink: 0 }}>
+                                  <Icon size={11} />
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sketch?.label || key}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                {sketch?.content}
+                                <button type="button" onClick={() => handleUpdateWidgetPosition(key, 'hidden')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)', fontWeight: 800 }}>✕</button>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
 
-              <div 
-                className="customizer-section"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleDropSection(e, 'right')}
-              >
-                <h5>Coluna Lateral (Direita)</h5>
-                {renderCustomizerSectionItems('right', rightOrder)}
-              </div>
             </div>
 
             <div className="customizer-footer" style={{ display: 'flex', gap: 10 }}>
               <button 
                 type="button"
                 className="btn-ghost" 
-                style={{ flex: 1, borderRadius: 12, padding: '10px 14px', fontSize: 13, borderColor: 'rgba(13, 61, 55, 0.15)' }} 
+                style={{ flex: 1, borderRadius: 12, padding: '10px 14px', fontSize: 13, borderColor: 'rgba(13, 61, 55, 0.15)', cursor: 'pointer' }} 
                 onClick={handleRestoreDefaults}
               >
                 Restaurar Padrão
@@ -2016,7 +2834,7 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
               <button 
                 type="button"
                 className="alloc-cta-btn" 
-                style={{ flex: 1, margin: 0, padding: '10px 14px', fontSize: 13 }} 
+                style={{ flex: 1, margin: 0, padding: '10px 14px', fontSize: 13, cursor: 'pointer' }} 
                 onClick={handleCloseCustomizer}
               >
                 Confirmar

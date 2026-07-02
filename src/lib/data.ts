@@ -1,6 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import type { DashboardData, CategorySummary, Transaction, Goal, FinancialProfile, Subscription } from '@/types/database'
 import { CATEGORY_COLORS } from '@/types/database'
+import { getAccounts } from '@/app/dashboard/actions/accounts'
+import { getCreditCards } from '@/app/dashboard/actions/credit-cards'
+import { getInvestments } from '@/app/dashboard/actions/investments'
+import { getGamificationData } from '@/app/dashboard/actions/gamification'
+import { predictFutureBalance } from '@/app/dashboard/actions/ai-assistant'
 
 function currentMonthRange() {
   const now = new Date()
@@ -62,7 +67,19 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
     end = e
   }
 
-  const [incomesRes, expensesRes, goalsRes, profileRes, subscriptionsRes] = await Promise.all([
+  const [
+    incomesRes,
+    expensesRes,
+    goalsRes,
+    profileRes,
+    subscriptionsRes,
+    transfersRes,
+    accounts,
+    creditCards,
+    investments,
+    gamification,
+    predictionRes
+  ] = await Promise.all([
     supabase
       .from('incomes')
       .select('*')
@@ -92,6 +109,18 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
       .select('*')
       .eq('user_id', userId)
       .order('due_day', { ascending: true }),
+    supabase
+      .from('transfers')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false }),
+    getAccounts(),
+    getCreditCards(),
+    getInvestments(),
+    getGamificationData(),
+    predictFutureBalance()
   ])
 
   const incomes = incomesRes.data ?? []
@@ -99,6 +128,7 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
   const goals: Goal[] = goalsRes.data ?? []
   const financialProfile: FinancialProfile | null = profileRes.data ?? null
   const subscriptions: Subscription[] = subscriptionsRes?.data ?? []
+  const transfers = transfersRes.data ?? []
 
   const monthlyIncome = incomes.reduce((s, r) => s + Number(r.amount), 0)
   const monthlyExpenses = expenses.reduce((s, r) => s + Number(r.amount), 0)
@@ -128,6 +158,7 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
     amount: Number(r.amount),
     category: r.category,
     date: r.date,
+    account_id: r.account_id,
   }))
 
   const txExpenses: Transaction[] = expenses.slice(0, 8).map(r => ({
@@ -138,9 +169,23 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
     amount: -Number(r.amount),
     category: r.category,
     date: r.date,
+    account_id: r.account_id,
+    credit_card_id: r.credit_card_id,
   }))
 
-  const recentTransactions = [...txIncomes, ...txExpenses]
+  const txTransfers: Transaction[] = transfers.slice(0, 8).map(t => ({
+    id: t.id,
+    type: 'transfer' as const,
+    name: t.description ?? 'Transferência bancária',
+    subtitle: `Transferência · ${formatDate(t.date)}`,
+    amount: Number(t.amount),
+    category: 'Transferência',
+    date: t.date,
+    account_id: t.source_account_id,
+    destination_account_id: t.destination_account_id,
+  }))
+
+  const recentTransactions = [...txIncomes, ...txExpenses, ...txTransfers]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 8)
 
@@ -163,6 +208,13 @@ export async function getDashboardData(userId: string, selectedMonthYM?: string)
     goals,
     financialProfile,
     subscriptions,
+    accounts,
+    creditCards,
+    investments,
+    streaks: gamification.streak,
+    achievements: gamification.achievements,
+    futureBalanceProjection: predictionRes.data,
+    futureBalanceInsight: predictionRes.insight
   }
 }
 

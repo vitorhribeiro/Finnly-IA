@@ -143,6 +143,8 @@ interface Insight {
 }
 
 import { PremiumIncomeModal } from './PremiumIncomeModal'
+import TransactionsFilterDrawer, { FilterState, defaultFilterState } from '@/components/dashboard/filters/TransactionsFilterDrawer'
+import { Filter } from 'lucide-react'
 
 function buildInsights(
   currentIncomes: Income[],
@@ -944,7 +946,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [categories, setCategories] = useState<IncomeCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(currentMonthYM)
-  const [filterCategory, setFilterCategory] = useState('')
+  const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showIncomeModal, setShowIncomeModal] = useState(false)
   const [editIncome, setEditIncome] = useState<Income | null>(null)
@@ -994,7 +997,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const filteredIncomes = useMemo(() =>
     allIncomes.filter(i => {
       if (i.date.slice(0, 7) !== selectedMonth) return false
-      if (filterCategory && i.category !== filterCategory) return false
+      if (filterState.categoryId && i.category !== filterState.categoryId) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         if (
@@ -1004,7 +1007,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       }
       return true
     }),
-    [allIncomes, selectedMonth, filterCategory, searchQuery]
+    [allIncomes, selectedMonth, filterState.categoryId, searchQuery]
   )
 
   const prevMonthStr = prevMonthYM(selectedMonth)
@@ -1093,7 +1096,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     setShowIncomeModal(true)
   }
 
-  const isFiltering = filterCategory !== '' || searchQuery !== ''
+  const isFiltering = filterState.categoryId !== '' || searchQuery !== ''
 
   if (loading) {
     return (
@@ -1220,7 +1223,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             const idx = monthOptions.findIndex(o => o.value === selectedMonth)
             if (idx > 0) {
               setSelectedMonth(monthOptions[idx - 1].value)
-              setFilterCategory('')
+              setFilterState(prev => ({...prev, categoryId: 'all'}))
               setSearchQuery('')
             }
           }}
@@ -1240,7 +1243,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 <button
                   key={o.value}
                   className={`month-tab-btn ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
-                  onClick={() => { setSelectedMonth(o.value); setFilterCategory(''); setSearchQuery('') }}
+                  onClick={() => { setSelectedMonth(o.value); setFilterState(prev => ({...prev, categoryId: 'all'})); setSearchQuery('') }}
                 >
                   <span className="month-tab-name">
                     {monthName}
@@ -1260,7 +1263,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             const idx = monthOptions.findIndex(o => o.value === selectedMonth)
             if (idx < monthOptions.length - 1) {
               setSelectedMonth(monthOptions[idx + 1].value)
-              setFilterCategory('')
+              setFilterState(prev => ({...prev, categoryId: 'all'}))
               setSearchQuery('')
             }
           }}
@@ -1275,8 +1278,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       <div className="filter-bar">
         <select
           className="filter-select"
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
+          value={filterState.categoryId}
+          onChange={e => setFilterState(prev => ({...prev, categoryId: e.target.value}))}
         >
           <option value="">Todas as categorias</option>
           {uniqueMonthCategoryNames.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1300,7 +1303,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           <button
             className="btn-ghost"
             style={{ padding: '7px 14px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            onClick={() => { setFilterCategory(''); setSearchQuery('') }}
+            onClick={() => { setFilterState(prev => ({...prev, categoryId: 'all'})); setSearchQuery('') }}
           >
             <X size={13} /> Limpar filtros
           </button>
@@ -1316,8 +1319,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <div className="card-head">
               <div className="card-title">
                 <span className="ti t-green"><ArrowDown size={17} /></span>
-                {filterCategory
-                  ? `${filterCategory} · ${getMonthLabel(selectedMonth)}`
+                {filterState.categoryId
+                  ? `${filterState.categoryId} · ${getMonthLabel(selectedMonth)}`
                   : `Lançamentos de ${getMonthLabel(selectedMonth)}`}
               </div>
               <div className="card-sub">
@@ -1338,11 +1341,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 <p>
                   {searchQuery
                     ? `Nenhuma receita encontrada para "${searchQuery}".`
-                    : filterCategory
-                      ? `Nenhuma receita de "${filterCategory}" em ${getMonthLabel(selectedMonth)}.`
+                    : filterState.categoryId
+                      ? `Nenhuma receita de "${filterState.categoryId}" em ${getMonthLabel(selectedMonth)}.`
                       : `Nenhuma receita em ${getMonthLabel(selectedMonth)}.`}
                 </p>
-                {!searchQuery && !filterCategory && (
+                {!searchQuery && !filterState.categoryId && (
                   <button className="btn-primary btn-orange" onClick={() => { setModalDefaults(undefined); setShowIncomeModal(true) }}>
                     <Plus size={16} /> Adicionar receita
                   </button>

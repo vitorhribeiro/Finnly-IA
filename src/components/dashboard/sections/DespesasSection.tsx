@@ -10,6 +10,8 @@ import { getExpenseCategories } from '@/app/dashboard/actions/expense-categories
 import { CATEGORY_COLORS } from '@/types/database'
 import type { Expense, Account, CreditCard, ExpenseCategory } from '@/types/database'
 import { PremiumExpenseModal } from './PremiumExpenseModal'
+import TransactionsFilterDrawer, { FilterState, defaultFilterState } from '@/components/dashboard/filters/TransactionsFilterDrawer'
+import { Filter, Search, X } from 'lucide-react'
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -28,6 +30,9 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
   
   const [showForm, setShowForm] = useState(false)
   const [editExpense, setEditExpense] = useState<Expense | null>(null)
+  const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   
   const [isPending, startTransition] = useTransition()
 
@@ -62,6 +67,64 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
     setEditExpense(null)
     load()
   }
+
+    const filteredItems = items.filter(inc => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      const desc = (inc.description || '').toLowerCase()
+      const cat = inc.category.toLowerCase()
+      if (!desc.includes(q) && !cat.includes(q)) return false
+    }
+    
+    // Period filter
+    if (filterState.period === 'this_month') {
+      const ym = new Date().toISOString().slice(0, 7)
+      if (inc.date.slice(0, 7) !== ym) return false
+    } else if (filterState.period === 'last_month') {
+      const d = new Date()
+      d.setMonth(d.getMonth() - 1)
+      if (inc.date.slice(0, 7) !== d.toISOString().slice(0, 7)) return false
+    } else if (filterState.period === 'last_7') {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      if (inc.date < d.toISOString().slice(0, 10)) return false
+    } else if (filterState.period === 'last_30') {
+      const d = new Date()
+      d.setDate(d.getDate() - 30)
+      if (inc.date < d.toISOString().slice(0, 10)) return false
+    } else if (filterState.period === 'custom' && filterState.customDateStart && filterState.customDateEnd) {
+      if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
+    }
+    
+    // Category
+    if (filterState.categoryId && inc.category !== filterState.categoryId) return false
+    
+    // Status
+    if (filterState.paymentMethod === 'received' && !inc.payment_status) return false
+    if (filterState.paymentMethod === 'pending' && inc.payment_status) return false
+    
+    // Type
+    if (filterState.transactionType !== 'all' && inc.expense_type !== filterState.transactionType) return false
+    
+    // Tags
+    if (filterState.tags && filterState.tags.length > 0) {
+      const incTags = inc.tags || []
+      const hasAllTags = filterState.tags.every(t => incTags.includes(t))
+      if (!hasAllTags) return false
+    }
+    
+    // Amount
+    if (filterState.minAmount && Number(inc.amount) < Number(filterState.minAmount)) return false
+    if (filterState.maxAmount && Number(inc.amount) > Number(filterState.maxAmount)) return false
+
+    return true
+  }).sort((a, b) => {
+    if (filterState.order === 'newest') return b.date.localeCompare(a.date)
+    if (filterState.order === 'oldest') return a.date.localeCompare(b.date)
+    if (filterState.order === 'highest') return Number(b.amount) - Number(a.amount)
+    if (filterState.order === 'lowest') return Number(a.amount) - Number(b.amount)
+    return 0
+  })
 
   const total = items.reduce((s, r) => s + Number(r.amount), 0)
 
@@ -141,10 +204,46 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
         />
       )}
 
+            <div className="filter-bar" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+        <button 
+          className="btn-secondary" 
+          style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <Filter size={15} /> Filtros avançados
+          {Object.keys(filterState).length > 2 && <div style={{ width: 6, height: 6, borderRadius: 6, background: 'var(--orange)' }} />}
+        </button>
+
+        <div className="search-input">
+          <Search size={14} className="search-icon" />
+          <input
+            placeholder="Buscar despesa…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, color: 'var(--faint)' }}>
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        
+        <TransactionsFilterDrawer 
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          type="expense"
+          activeFilters={filterState}
+          onApply={setFilterState}
+          categories={categories}
+          accounts={accounts}
+          cards={creditCards}
+        />
+      </div>
+      
       <section className="card">
         {loading ? (
           <p className="empty-msg">Carregando…</p>
-        ) : items.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="empty-list">
             <ArrowUp size={32} className="t-orange" />
             <p>Nenhuma despesa registrada ainda.</p>
@@ -153,7 +252,7 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
             </button>
           </div>
         ) : (
-          items.map(item => {
+          filteredItems.map(item => {
             const color = CATEGORY_COLORS[item.category] ?? '#90A4AE'
             return (
               <div key={item.id} className="row-item">

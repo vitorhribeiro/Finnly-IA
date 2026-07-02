@@ -142,6 +142,8 @@ interface Insight {
   body: string
 }
 
+import { PremiumIncomeModal } from './PremiumIncomeModal'
+
 function buildInsights(
   currentIncomes: Income[],
   prevIncomes: Income[],
@@ -779,188 +781,6 @@ function CustomCategorySelect({
         document.body
       )}
     </div>
-  )
-}
-
-// ============================================================ INCOME MODAL
-
-interface IncomeModalProps {
-  income: Income | null
-  defaultValues?: { category?: string; amount?: number; is_recurring?: boolean }
-  categories: IncomeCategory[]
-  onClose: () => void
-  onSaved: () => void
-  onRequestNewCategory: () => void
-}
-
-function IncomeModal({ income, defaultValues, categories, onClose, onSaved, onRequestNewCategory }: IncomeModalProps) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      const openModals = document.querySelectorAll('.modal-scrim')
-      if (openModals.length <= 1) {
-        document.body.style.overflow = ''
-      }
-    }
-  }, [])
-
-  const isEdit = !!income
-  const formatCurrency = (val: string | number) => {
-    if (val === '') return ''
-    const num = typeof val === 'number' ? val : Number(String(val).replace(/\D/g, '')) / 100
-    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
-  const [amount, setAmount] = useState(() => {
-    if (income) return formatCurrency(Number(income.amount))
-    if (defaultValues?.amount) return formatCurrency(defaultValues.amount)
-    return ''
-  })
-  const [category, setCategory] = useState(
-    income?.category ?? defaultValues?.category ?? (categories[0]?.name ?? 'Outros')
-  )
-  const [date, setDate] = useState(income?.date ?? localToday())
-  const [description, setDescription] = useState(income?.description ?? '')
-  const [isRecurring, setIsRecurring] = useState(
-    income?.is_recurring ?? defaultValues?.is_recurring ?? false
-  )
-  const [notes, setNotes] = useState(income?.notes ?? '')
-  const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
-
-  function handleSubmit() {
-    const cleanAmount = String(amount).replace(/\./g, '').replace(',', '.')
-    const amt = parseFloat(cleanAmount)
-    if (!amt || amt <= 0) { setError('Informe um valor válido'); return }
-    if (!category) { setError('Selecione uma categoria'); return }
-    if (!date) { setError('Informe uma data'); return }
-
-    const fd = new FormData()
-    fd.set('amount', String(amt))
-    fd.set('category', category)
-    fd.set('date', date)
-    fd.set('description', description)
-    fd.set('is_recurring', String(isRecurring))
-    fd.set('notes', notes)
-
-    setError('')
-    startTransition(async () => {
-      const res = isEdit && income
-        ? await updateIncome(income.id, fd)
-        : await addIncome(fd)
-      if ('error' in res) { setError(res.error ?? 'Erro desconhecido'); return }
-      onSaved()
-    })
-  }
-
-  return createPortal(
-    <>
-      <div className="modal-scrim" onClick={onClose} />
-      <div className="modal-box">
-
-        {/* HEADER */}
-        <div className="modal-head">
-          <div>
-            <h3>{isEdit ? 'Editar receita' : 'Nova receita'}</h3>
-            <div className="modal-subtitle">{isEdit ? 'Atualize os dados abaixo' : 'Registre uma entrada de dinheiro'}</div>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
-        </div>
-
-        {/* BODY */}
-        <div className="modal-body">
-
-          {/* AMOUNT HERO */}
-          <div className="modal-amount-hero">
-            <div className="modal-amount-hero-label">Valor da receita</div>
-            <div className="modal-amount-hero-row">
-              <span className="modal-amount-currency">R$</span>
-              <input
-                className="modal-amount-input"
-                type="tel"
-                placeholder="0,00"
-                value={amount}
-                onChange={e => setAmount(formatCurrency(e.target.value))}
-                autoFocus
-              />
-            </div>
-          </div>
-
-          {/* CATEGORY */}
-          <div className="entry-form">
-            <label>
-              <span>Categoria <span className="req">*</span></span>
-              <CustomCategorySelect
-                value={category}
-                categories={categories}
-                onChange={val => setCategory(val)}
-                onRequestNewCategory={onRequestNewCategory}
-              />
-            </label>
-
-            <div className="form-row">
-              <label>
-                <span>Data <span className="req">*</span></span>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-              </label>
-              <label>
-                Descrição
-                <input
-                  placeholder="Ex: Salário junho"
-                  value={description} onChange={e => setDescription(e.target.value)}
-                />
-              </label>
-            </div>
-
-            <button
-              type="button" role="switch" aria-checked={isRecurring}
-              onClick={() => setIsRecurring(r => !r)}
-              style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}
-            >
-              <div className={`toggle-row${isRecurring ? ' active' : ''}`}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{
-                    width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                    background: isRecurring ? 'rgba(1,88,76,.12)' : 'var(--line)',
-                    color: isRecurring ? 'var(--teal)' : 'var(--faint)',
-                    display: 'grid', placeItems: 'center',
-                    transition: 'all .2s',
-                  }}>
-                    <CalendarClock size={16} />
-                  </span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Receita recorrente</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--faint)', fontWeight: 600, marginTop: 1 }}>Repete automaticamente todo mês</div>
-                  </div>
-                </div>
-                <div className={`toggle${isRecurring ? ' on' : ''}`} style={{ flexShrink: 0, pointerEvents: 'none' }} />
-              </div>
-            </button>
-
-            <label>
-              Observação <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--faint)' }}>(opcional)</span>
-              <textarea
-                placeholder="Algum detalhe adicional…"
-                value={notes} onChange={e => setNotes(e.target.value)}
-                rows={2}
-              />
-            </label>
-
-            {error && <p className="form-error">{error}</p>}
-          </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="modal-foot">
-          <button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn-primary btn-orange" onClick={handleSubmit} disabled={isPending}>
-            {isPending ? 'Salvando…' : (isEdit ? 'Salvar alterações' : 'Salvar receita')}
-          </button>
-        </div>
-
-      </div>
-    </>,
-    document.body
   )
 }
 
@@ -1677,7 +1497,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
       {/* ============ MODALS ============ */}
       {(showIncomeModal || editIncome) && (
-        <IncomeModal
+        <PremiumIncomeModal
           income={editIncome}
           defaultValues={modalDefaults}
           categories={categories}

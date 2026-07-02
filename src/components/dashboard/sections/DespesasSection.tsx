@@ -1,10 +1,15 @@
+
 'use client'
 
-import { useEffect, useState, useTransition, useRef } from 'react'
-import { Plus, Trash2, ArrowUp, X } from 'lucide-react'
+import { useEffect, useState, useTransition } from 'react'
+import { Plus, Trash2, ArrowUp, Pencil } from 'lucide-react'
 import { addExpense, deleteExpense, getAllExpenses } from '@/app/dashboard/actions/expenses'
-import { EXPENSE_CATEGORIES, CATEGORY_COLORS } from '@/types/database'
-import type { Expense } from '@/types/database'
+import { getAccounts } from '@/app/dashboard/actions/accounts'
+import { getCreditCards } from '@/app/dashboard/actions/credit-cards'
+import { getExpenseCategories } from '@/app/dashboard/actions/expense-categories'
+import { CATEGORY_COLORS } from '@/types/database'
+import type { Expense, Account, CreditCard, ExpenseCategory } from '@/types/database'
+import { PremiumExpenseModal } from './PremiumExpenseModal'
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -16,47 +21,46 @@ function formatDate(d: string) {
 
 export function DespesasSection({ hidden }: { hidden: boolean }) {
   const [items, setItems] = useState<Expense[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [creditCards, setCreditCards] = useState<CreditCard[]>([])
+  const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)
+  
   const [showForm, setShowForm] = useState(false)
+  const [editExpense, setEditExpense] = useState<Expense | null>(null)
+  
   const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState('')
-  const formRef = useRef<HTMLFormElement>(null)
 
   async function load() {
     setLoading(true)
-    const data = await getAllExpenses()
+    const [data, acc, cards, cats] = await Promise.all([
+      getAllExpenses(),
+      getAccounts(),
+      getCreditCards(),
+      getExpenseCategories()
+    ])
     setItems(data as Expense[])
+    setAccounts(acc)
+    setCreditCards(cards)
+    setCategories(cats)
     setLoading(false)
   }
 
   useEffect(() => {
-    let active = true
-    async function init() {
-      const data = await getAllExpenses()
-      if (!active) return
-      setItems(data as Expense[])
-      setLoading(false)
-    }
-    init()
-    return () => { active = false }
+    load()
   }, [])
-
-  function handleSubmit(fd: FormData) {
-    setError('')
-    startTransition(async () => {
-      const res = await addExpense(fd)
-      if (res && 'error' in res) { setError(res.error ?? 'Erro desconhecido'); return }
-      formRef.current?.reset()
-      setShowForm(false)
-      await load()
-    })
-  }
 
   function handleDelete(id: string) {
     startTransition(async () => {
       await deleteExpense(id)
       await load()
     })
+  }
+
+  function handleSaved() {
+    setShowForm(false)
+    setEditExpense(null)
+    load()
   }
 
   const total = items.reduce((s, r) => s + Number(r.amount), 0)
@@ -126,43 +130,15 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
         )}
       </div>
 
-      {showForm && (
-        <>
-          <div className="modal-scrim" onClick={() => setShowForm(false)} />
-          <div className="modal-box">
-            <div className="modal-head">
-              <h3>Nova despesa</h3>
-              <button className="icon-btn" onClick={() => setShowForm(false)}><X size={18} /></button>
-            </div>
-            <form ref={formRef} action={handleSubmit} className="entry-form">
-              <label>
-                Descrição
-                <input name="description" placeholder="Ex: Mercado" />
-              </label>
-              <label>
-                <span>Valor (R$) <span className="req">*</span></span>
-                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0,00" required />
-              </label>
-              <label>
-                <span>Categoria <span className="req">*</span></span>
-                <select name="category" defaultValue="Alimentação" required>
-                  {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>Data <span className="req">*</span></span>
-                <input name="date" type="date" defaultValue={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()} required />
-              </label>
-              {error && <p className="form-error">{error}</p>}
-              <div className="form-actions">
-                <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary btn-orange" disabled={isPending}>
-                  {isPending ? 'Salvando…' : 'Salvar despesa'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
+      {(showForm || editExpense) && (
+        <PremiumExpenseModal 
+          expense={editExpense}
+          categories={categories}
+          accounts={accounts}
+          creditCards={creditCards}
+          onClose={() => { setShowForm(false); setEditExpense(null); }}
+          onSaved={handleSaved}
+        />
       )}
 
       <section className="card">
@@ -191,6 +167,14 @@ export function DespesasSection({ hidden }: { hidden: boolean }) {
                     – R$ {brl(Number(item.amount))}
                   </span>
                 </div>
+                <button
+                  className="icon-btn"
+                  onClick={() => setEditExpense(item)}
+                  disabled={isPending}
+                  title="Editar"
+                >
+                  <Pencil size={16} />
+                </button>
                 <button
                   className="icon-btn delete-btn"
                   onClick={() => handleDelete(item.id)}

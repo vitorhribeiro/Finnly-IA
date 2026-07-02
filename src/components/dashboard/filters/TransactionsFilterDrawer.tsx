@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import CustomSelect from '@/components/ui/CustomSelect'
-import CustomDatePicker from '@/components/ui/CustomDatePicker'
+import { CustomSelect } from '@/components/ui/CustomSelect'
+import { CustomDatePicker } from '@/components/ui/CustomDatePicker'
 
 export interface FilterState {
   period: 'global' | 'this_month' | 'last_month' | 'last_7' | 'last_30' | 'custom'
@@ -180,20 +180,20 @@ export default function TransactionsFilterDrawer({
                 { value: 'custom', label: 'Personalizado' },
               ]}
               value={localFilters.period}
-              onChange={(val) => setLocalFilters({ ...localFilters, period: val as any })}
+              onChange={(val: string) => setLocalFilters({ ...localFilters, period: val as any })}
             />
             {localFilters.period === 'custom' && (
               <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                 <div style={{ flex: 1 }}>
                   <CustomDatePicker 
                     value={localFilters.customDateStart || ''} 
-                    onChange={val => setLocalFilters({ ...localFilters, customDateStart: val })} 
+                    onChange={(val: string) => setLocalFilters({ ...localFilters, customDateStart: val })} 
                   />
                 </div>
                 <div style={{ flex: 1 }}>
                   <CustomDatePicker 
                     value={localFilters.customDateEnd || ''} 
-                    onChange={val => setLocalFilters({ ...localFilters, customDateEnd: val })} 
+                    onChange={(val: string) => setLocalFilters({ ...localFilters, customDateEnd: val })} 
                   />
                 </div>
               </div>
@@ -203,19 +203,19 @@ export default function TransactionsFilterDrawer({
           {/* Categoria */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-800)' }}>Categoria</span>
-            <CustomSelect options={categoryOptions} value={localFilters.categoryId} onChange={val => setLocalFilters({ ...localFilters, categoryId: val })} />
+            <CustomSelect options={categoryOptions} value={localFilters.categoryId} onChange={(val: string) => setLocalFilters({ ...localFilters, categoryId: val })} />
           </div>
 
           {/* Conta / Cartão */}
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-800)' }}>{type === 'expense' ? 'Conta Bancária' : 'Conta de Destino'}</span>
-              <CustomSelect options={accountOptions} value={localFilters.accountId} onChange={val => setLocalFilters({ ...localFilters, accountId: val })} />
+              <CustomSelect options={accountOptions} value={localFilters.accountId} onChange={(val: string) => setLocalFilters({ ...localFilters, accountId: val })} />
             </div>
             {type === 'expense' && cards.length > 0 && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-800)' }}>Cartão de Crédito</span>
-                <CustomSelect options={cardOptions} value={localFilters.creditCardId} onChange={val => setLocalFilters({ ...localFilters, creditCardId: val })} />
+                <CustomSelect options={cardOptions} value={localFilters.creditCardId} onChange={(val: string) => setLocalFilters({ ...localFilters, creditCardId: val })} />
               </div>
             )}
           </div>
@@ -223,7 +223,7 @@ export default function TransactionsFilterDrawer({
           {/* Forma */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-800)' }}>{type === 'expense' ? 'Forma de pagamento' : 'Forma de recebimento'}</span>
-            <CustomSelect options={methodsOptions} value={localFilters.paymentMethod} onChange={val => setLocalFilters({ ...localFilters, paymentMethod: val })} />
+            <CustomSelect options={methodsOptions} value={localFilters.paymentMethod} onChange={(val: string) => setLocalFilters({ ...localFilters, paymentMethod: val })} />
           </div>
 
           {/* Tipo e Tags */}
@@ -233,7 +233,7 @@ export default function TransactionsFilterDrawer({
                 <CustomSelect 
                   options={[{ value: 'all', label: 'Todas' }, { value: 'fixed', label: 'Fixa' }, { value: 'variable', label: 'Variável' }]} 
                   value={localFilters.transactionType} 
-                  onChange={val => setLocalFilters({ ...localFilters, transactionType: val as any })} 
+                  onChange={(val: string) => setLocalFilters({ ...localFilters, transactionType: val as any })} 
                 />
              </div>
           </div>
@@ -295,7 +295,7 @@ export default function TransactionsFilterDrawer({
                 { value: 'lowest', label: 'Menor valor' }
               ]} 
               value={localFilters.order} 
-              onChange={val => setLocalFilters({ ...localFilters, order: val as any })} 
+              onChange={(val: string) => setLocalFilters({ ...localFilters, order: val as any })} 
             />
           </div>
 

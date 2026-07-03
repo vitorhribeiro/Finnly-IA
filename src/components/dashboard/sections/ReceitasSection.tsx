@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
-  ArrowDown, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy
+  ArrowDown, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy,
+  HeartPulse, ShieldCheck
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
@@ -111,6 +112,111 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return res
   }, [allIncomes, selectedMonth])
   const maxHVal = Math.max(...history4m.map(m => m.total), 1)
+
+  // --- Saúde da Receita Calculations ---
+  const saudeMetrics = useMemo(() => {
+    if (totalPeriodo === 0) {
+      return {
+        score: 100,
+        status: 'SAUDÁVEL',
+        badgeClass: 'status-saudavel',
+        desc: 'Sem dados para análise neste período.',
+        previsibilidadeLabel: 'Sem dados',
+        previsibilidadeDesc: 'Nenhuma receita registrada.',
+        atrasosLabel: 'Sem dados',
+        atrasosDesc: 'Nenhuma pendência relevante.',
+        diversificacaoLabel: 'Sem dados',
+        diversificacaoDesc: 'Nenhuma fonte identificada.'
+      }
+    }
+
+    // 1. Previsibilidade (40 points)
+    let prevScore = 0
+    let previsibilidadeLabel = 'Previsibilidade baixa'
+    let previsibilidadeDesc = 'Renda concentrada em variáveis.'
+    if (pctFixa >= 70) {
+      prevScore = 40
+      previsibilidadeLabel = 'Previsibilidade alta'
+      previsibilidadeDesc = 'Receitas recorrentes sólidas.'
+    } else if (pctFixa >= 30) {
+      prevScore = 25
+      previsibilidadeLabel = 'Previsibilidade média'
+      previsibilidadeDesc = 'Mescla de fixas e variáveis.'
+    } else {
+      prevScore = 10
+    }
+
+    // 2. Atrasos (40 points)
+    let atrasoScore = 40
+    let atrasosLabel = 'Sem atrasos'
+    let atrasosDesc = 'Pagamentos em dia.'
+    if (atrasado > 0) {
+      atrasosLabel = 'Há atrasos'
+      const ratio = atrasado / totalPeriodo
+      atrasoScore = Math.max(0, 40 - Math.round(ratio * 100))
+      atrasosDesc = 'Atrasos no período.'
+    }
+
+    // 3. Diversificação (20 points)
+    let divScore = 5
+    let diversificacaoLabel = 'Alta concentração'
+    let diversificacaoDesc = 'Concentrada em uma única fonte.'
+
+    const maxCatVal = catRanking[0] ? catRanking[0][1] : 0
+    const maxCatPct = totalPeriodo > 0 ? (maxCatVal / totalPeriodo) * 100 : 0
+
+    if (catRanking.length >= 2 && maxCatPct <= 50) {
+      divScore = 20
+      diversificacaoLabel = 'Boa diversificação'
+      diversificacaoDesc = 'Receita bem distribuída.'
+    } else if (catRanking.length >= 2 && maxCatPct <= 80) {
+      divScore = 12
+      diversificacaoLabel = 'Concentração moderada'
+      diversificacaoDesc = 'Principal fonte até 80%.'
+    }
+
+    const score = prevScore + atrasoScore + divScore
+
+    let status = 'SAUDÁVEL'
+    let badgeClass = 'status-saudavel'
+    let desc = 'Sua receita está saudável, com boa previsibilidade e sem atrasos relevantes.'
+
+    if (score >= 80) {
+      status = 'SAUDÁVEL'
+      badgeClass = 'status-saudavel'
+      desc = 'Sua receita está saudável, com boa previsibilidade e sem atrasos relevantes.'
+    } else if (score >= 60) {
+      status = 'ATENÇÃO LEVE'
+      badgeClass = 'status-atencao-leve'
+      desc = 'Sua receita está estável, mas ainda há pontos que merecem atenção.'
+    } else if (score >= 40) {
+      status = 'ATENÇÃO'
+      badgeClass = 'status-atencao'
+      desc = 'Sua receita exige atenção: há pendências, atrasos ou concentração elevada.'
+    } else {
+      status = 'CRÍTICO'
+      badgeClass = 'status-critico'
+      desc = 'Sua receita está em estado crítico. Revise atrasos, fontes de renda e previsibilidade.'
+    }
+
+    return {
+      score,
+      status,
+      badgeClass,
+      desc,
+      previsibilidadeLabel,
+      previsibilidadeDesc,
+      atrasosLabel,
+      atrasosDesc,
+      diversificacaoLabel,
+      diversificacaoDesc
+    }
+  }, [totalPeriodo, pctFixa, atrasado, catRanking])
+
+  const angle = (saudeMetrics.score * 3.6) - 90
+  const angleRad = (angle * Math.PI) / 180
+  const dotX = 50 + 42 * Math.cos(angleRad)
+  const dotY = 50 + 42 * Math.sin(angleRad)
 
   // --- Table Filters (Based on Drawer) ---
   const filteredIncomes = useMemo(() => {
@@ -253,29 +359,101 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         </div>
 
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px' }}>
-            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
-              Saúde da Receita
-              <CardInfoTooltip content="Avalia previsibilidade, atrasos e equilíbrio das suas entradas no período." />
-            </div>
-            {totalPeriodo > 0 ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 28, fontWeight: 800, color: 'var(--teal)' }}>
-                    100<span style={{ fontSize: 16, color: 'var(--muted)' }}>/100</span>
+          {totalPeriodo > 0 ? (
+            <div className="premium-health-card">
+              <div className="premium-health-header">
+                <div className="premium-health-title-container">
+                  <div className="premium-health-icon-wrapper">
+                    <HeartPulse size={16} />
                   </div>
-                  <span style={{ background: 'rgba(1,88,76,0.1)', color: 'var(--teal)', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Saudável
-                  </span>
+                  <div className="premium-health-divider" />
+                  <span className="premium-health-title">SAÚDE DA RECEITA</span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
-                  Sua receita está saudável, com boa previsibilidade e sem atrasos relevantes.
-                </p>
-              </>
-            ) : (
+                <div className="premium-health-info">
+                  <CardInfoTooltip content="A Saúde da Receita considera previsibilidade, atrasos, concentração das fontes e composição entre receitas fixas e variáveis." />
+                </div>
+              </div>
+
+              <div className="premium-health-body">
+                <div className="premium-health-score-container">
+                  <svg viewBox="0 0 100 100" className="premium-health-score-svg">
+                    <circle cx="50" cy="50" r="42" className="premium-health-score-bg-circle" />
+                    <circle 
+                      cx="50" 
+                      cy="50" 
+                      r="42" 
+                      className="premium-health-score-fill-circle" 
+                      style={{ 
+                        strokeDasharray: `${2 * Math.PI * 42}`, 
+                        strokeDashoffset: `${2 * Math.PI * 42 - (saudeMetrics.score / 100) * 2 * Math.PI * 42}` 
+                      }} 
+                    />
+                    {saudeMetrics.score > 0 && (
+                      <circle cx={dotX} cy={dotY} r="4" fill="var(--teal)" stroke="#FCFAF7" strokeWidth="2" />
+                    )}
+                  </svg>
+                  <div className="premium-health-score-value-wrapper">
+                    <span className={`premium-health-score-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
+                    <span className="premium-health-score-total">/100</span>
+                  </div>
+                </div>
+
+                <div className="premium-health-status-container">
+                  <span className={`premium-health-badge ${saudeMetrics.badgeClass}`}>
+                    <ShieldCheck size={12} />
+                    {saudeMetrics.status}
+                  </span>
+                  <p className="premium-health-desc">
+                    {saudeMetrics.desc}
+                  </p>
+                </div>
+              </div>
+
+              <div className="premium-health-footer">
+                <div className="premium-health-indicator-item">
+                  <div className="premium-health-indicator-icon-wrapper">
+                    <TrendingUp size={12} />
+                  </div>
+                  <div className="premium-health-indicator-content">
+                    <span className="premium-health-indicator-title">{saudeMetrics.previsibilidadeLabel}</span>
+                    <span className="premium-health-indicator-desc">{saudeMetrics.previsibilidadeDesc}</span>
+                  </div>
+                </div>
+
+                <div className="premium-health-footer-divider" />
+
+                <div className="premium-health-indicator-item">
+                  <div className="premium-health-indicator-icon-wrapper">
+                    <CalendarClock size={12} />
+                  </div>
+                  <div className="premium-health-indicator-content">
+                    <span className="premium-health-indicator-title">{saudeMetrics.atrasosLabel}</span>
+                    <span className="premium-health-indicator-desc">{saudeMetrics.atrasosDesc}</span>
+                  </div>
+                </div>
+
+                <div className="premium-health-footer-divider" />
+
+                <div className="premium-health-indicator-item">
+                  <div className="premium-health-indicator-icon-wrapper">
+                    <PieChart size={12} />
+                  </div>
+                  <div className="premium-health-indicator-content">
+                    <span className="premium-health-indicator-title">{saudeMetrics.diversificacaoLabel}</span>
+                    <span className="premium-health-indicator-desc">{saudeMetrics.diversificacaoDesc}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ height: '100%', padding: '20px' }}>
+              <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
+                Saúde da Receita
+                <CardInfoTooltip content="Avalia previsibilidade, atrasos e equilíbrio das suas entradas no período." />
+              </div>
               <p className="empty-msg" style={{ padding: '20px 0', fontSize: 12 }}>Sem dados para análise.</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ROW 2: Composição, Dependência, Histórico */}

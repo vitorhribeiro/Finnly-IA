@@ -121,7 +121,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
   const HEALTH_SCORE_RADIUS = 38
   const circumference = 2 * Math.PI * HEALTH_SCORE_RADIUS
-  const angle = (saudeMetrics.score * 3.6) - 90
+  // The SVG itself is rotated -90deg in CSS, so the coordinates must be calculated natively (0% at 3 o'clock)
+  const angle = saudeMetrics.score * 3.6
   const angleRad = (angle * Math.PI) / 180
   const dotX = 50 + HEALTH_SCORE_RADIUS * Math.cos(angleRad)
   const dotY = 50 + HEALTH_SCORE_RADIUS * Math.sin(angleRad)
@@ -327,7 +328,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                     }} 
                   />
                   {saudeMetrics.score > 0 && (
-                    <circle cx={dotX} cy={dotY} r="4" fill={strokeColor} stroke="#FCFAF7" strokeWidth="2" />
+                    <circle cx={dotX} cy={dotY} r="4" fill="#FCFAF7" stroke={strokeColor} strokeWidth="2" />
                   )}
                 </svg>
                 <div className="premium-health-score-value-wrapper">

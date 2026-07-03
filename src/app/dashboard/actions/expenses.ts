@@ -4,6 +4,21 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import type { Expense } from '@/types/database'
 
+function calculateInstallments(total: number, count: number): number[] {
+  const base = Math.floor((total / count) * 100) / 100
+  const remainder = Math.round((total - (base * count)) * 100) / 100
+  
+  const list = []
+  for (let i = 1; i <= count; i++) {
+    if (i === 1) {
+      list.push(Math.round((base + remainder) * 100) / 100)
+    } else {
+      list.push(base)
+    }
+  }
+  return list
+}
+
 export async function addExpense(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -54,6 +69,7 @@ export async function addExpense(formData: FormData) {
   if (isInstallment) {
     const baseDate = new Date(dateStr + 'T00:00:00')
     const insertPromises = []
+    const installmentAmounts = calculateInstallments(amount, installmentsTotal)
 
     for (let i = 1; i <= installmentsTotal; i++) {
       const currentInstDate = new Date(baseDate)
@@ -62,11 +78,12 @@ export async function addExpense(formData: FormData) {
 
       const instPaymentStatus = creditCardId ? false : (i === 1 ? paymentStatus : false)
       const desc = description ? `${description} (${i}/${installmentsTotal})` : `${category} (${i}/${installmentsTotal})`
+      const instAmount = installmentAmounts[i - 1]
 
       if (instPaymentStatus && !creditCardId && paidAccountId) {
         // Use RPC to create paid expense safely
         const promise = supabase.rpc('create_paid_expense_rpc', {
-          p_amount: amount,
+          p_amount: instAmount,
           p_category: category,
           p_description: desc,
           p_date: currentInstDateStr,
@@ -84,7 +101,7 @@ export async function addExpense(formData: FormData) {
       } else {
         const promise = supabase.from('expenses').insert({
           user_id: user.id,
-          amount,
+          amount: instAmount,
           category,
           description: desc,
           date: currentInstDateStr,

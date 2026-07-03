@@ -4,6 +4,21 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import type { Income } from '@/types/database'
 
+function calculateInstallments(total: number, count: number): number[] {
+  const base = Math.floor((total / count) * 100) / 100
+  const remainder = Math.round((total - (base * count)) * 100) / 100
+  
+  const list = []
+  for (let i = 1; i <= count; i++) {
+    if (i === 1) {
+      list.push(Math.round((base + remainder) * 100) / 100)
+    } else {
+      list.push(base)
+    }
+  }
+  return list
+}
+
 export async function addIncome(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -51,6 +66,7 @@ export async function addIncome(formData: FormData) {
     // Se for parcelado, gera N lançamentos futuros (1 por mês)
     const baseDate = new Date(dateStr + 'T00:00:00')
     const insertPromises = []
+    const installmentAmounts = calculateInstallments(amount, installmentsTotal)
 
     for (let i = 1; i <= installmentsTotal; i++) {
       const currentInstDate = new Date(baseDate)
@@ -59,10 +75,11 @@ export async function addIncome(formData: FormData) {
 
       // A primeira parcela pode ser paga hoje. As parcelas futuras iniciam como não recebidas (payment_status: false) por padrão.
       const instPaymentStatus = i === 1 ? paymentStatus : false
+      const instAmount = installmentAmounts[i - 1]
 
       const promise = supabase.from('incomes').insert({
         user_id: user.id,
-        amount,
+        amount: instAmount,
         category,
         description: description ? `${description} (${i}/${installmentsTotal})` : `${category} (${i}/${installmentsTotal})`,
         date: currentInstDateStr,

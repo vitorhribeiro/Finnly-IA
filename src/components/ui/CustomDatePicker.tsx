@@ -7,6 +7,8 @@ interface CustomDatePickerProps {
   onChange: (value: string) => void
   placeholder?: string
   id?: string
+  externalOpen?: boolean
+  onExternalOpenChange?: (open: boolean) => void
 }
 
 function parseDate(isoStr: string) {
@@ -28,8 +30,20 @@ function toIsoStr(date: Date) {
   return `${y}-${m}-${d}`
 }
 
-export function CustomDatePicker({ value, onChange, placeholder = 'Selecionar...', id }: CustomDatePickerProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder = 'Selecionar...', 
+  id,
+  externalOpen,
+  onExternalOpenChange
+}: CustomDatePickerProps) {
+  const [isOpenState, setIsOpenState] = useState(false)
+  const isOpen = externalOpen !== undefined ? externalOpen : isOpenState
+  const setIsOpen = (val: boolean) => {
+    setIsOpenState(val)
+    if (onExternalOpenChange) onExternalOpenChange(val)
+  }
   const [rect, setRect] = useState<DOMRect | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)

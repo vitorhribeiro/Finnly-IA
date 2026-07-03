@@ -168,9 +168,19 @@ async function runExpenseMatrix() {
       p_installments_total: null,
       p_paid_account_id: accA.id,
       p_payment_method: 'pix',
-      p_paid_at: today
+      p_paid_at: today,
+      p_tags: null,
+      p_notes: null,
+      p_expense_type: 'variable',
+      p_is_recurring: false
     })
-    paidExpId = t4.data.expense_id
+    if (t4.error) {
+      console.error('RPC Error:', t4.error)
+    }
+    paidExpId = t4.data?.expense_id
+    if (!paidExpId) {
+      throw new Error(`Failed to create paid expense. Error: ${JSON.stringify(t4.error)}`)
+    }
 
     const { data: createdPaidExp } = await supabase.from('expenses').select('*').eq('id', paidExpId).single()
     newBalances = await checkBalances()
@@ -196,7 +206,11 @@ async function runExpenseMatrix() {
       p_date: today,
       p_paid_account_id: accA.id,
       p_payment_method: 'pix',
-      p_paid_at: today
+      p_paid_at: today,
+      p_tags: null,
+      p_notes: null,
+      p_expense_type: 'variable',
+      p_is_recurring: false
     })
 
     const { data: updatedPaidExp1 } = await supabase.from('expenses').select('*').eq('id', paidExpId).single()
@@ -223,7 +237,11 @@ async function runExpenseMatrix() {
       p_date: today,
       p_paid_account_id: accA.id,
       p_payment_method: 'pix',
-      p_paid_at: today
+      p_paid_at: today,
+      p_tags: null,
+      p_notes: null,
+      p_expense_type: 'variable',
+      p_is_recurring: false
     })
 
     const { data: updatedPaidExp2 } = await supabase.from('expenses').select('*').eq('id', paidExpId).single()
@@ -250,7 +268,11 @@ async function runExpenseMatrix() {
       p_date: today,
       p_paid_account_id: accB.id,
       p_payment_method: 'pix',
-      p_paid_at: today
+      p_paid_at: today,
+      p_tags: null,
+      p_notes: null,
+      p_expense_type: 'variable',
+      p_is_recurring: false
     })
 
     const { data: updatedPaidExp3 } = await supabase.from('expenses').select('*').eq('id', paidExpId).single()

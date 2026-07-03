@@ -4,6 +4,8 @@ import { ChevronDown } from 'lucide-react'
 interface Option {
   value: string
   label: string
+  icon?: string
+  color?: string
 }
 
 interface CustomSelectProps {
@@ -76,7 +78,19 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
           textAlign: 'left'
         }}
       >
-        <span>{selectedOption ? selectedOption.label : placeholder}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {selectedOption?.color && (
+            <span style={{ 
+              width: 8, 
+              height: 8, 
+              borderRadius: '50%', 
+              background: selectedOption.color,
+              display: 'inline-block',
+              flexShrink: 0
+            }} />
+          )}
+          <span>{selectedOption ? selectedOption.label : placeholder}</span>
+        </span>
         <ChevronDown 
           size={16} 
           style={{ 
@@ -113,6 +127,16 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
         >
           {options.map((opt) => {
             const isSelected = opt.value === value
+            const isNewOption = opt.value.startsWith('__new_')
+            
+            // Choose colors based on option type
+            let itemColor = 'var(--ink)'
+            if (isSelected) {
+              itemColor = 'var(--teal)'
+            } else if (isNewOption) {
+              itemColor = 'var(--teal)'
+            }
+            
             return (
               <li
                 key={opt.value}
@@ -125,12 +149,15 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
                 style={{
                   padding: '10px 12px',
                   fontSize: 13,
-                  fontWeight: 800,
+                  fontWeight: isSelected || isNewOption ? 800 : 600,
                   borderRadius: 8,
                   cursor: 'pointer',
                   background: isSelected ? 'rgba(1, 88, 76, 0.08)' : 'transparent',
-                  color: isSelected ? 'var(--teal)' : 'var(--ink)',
-                  transition: 'background 0.2s'
+                  color: itemColor,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
@@ -143,7 +170,17 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
                   }
                 }}
               >
-                {opt.label}
+                {opt.color && (
+                  <span style={{ 
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    background: opt.color,
+                    display: 'inline-block',
+                    flexShrink: 0
+                  }} />
+                )}
+                <span>{opt.label}</span>
               </li>
             )
           })}

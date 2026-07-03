@@ -45,3 +45,6 @@ next-env.d.ts
 .claude/
 skills-lock.json
 *.zip
+
+# supabase temp
+/supabase/.temp/

@@ -28,6 +28,25 @@ export async function addIncome(formData: FormData) {
   const installmentsTotal = parseInt(String(formData.get('installments_total') || ''), 10)
   const isInstallment = !isNaN(installmentsTotal) && installmentsTotal > 1
 
+  if (isRecurring && !isInstallment) {
+    const startOfMonth = `${dateStr.slice(0, 7)}-01`
+    const endOfMonth = `${dateStr.slice(0, 7)}-31`
+    const { data: existing } = await supabase
+      .from('incomes')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('is_recurring', true)
+      .eq('category', category)
+      .eq('description', description)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      return { error: 'Já existe um lançamento recorrente idêntico para este mês.' }
+    }
+  }
+
   if (isInstallment) {
     // Se for parcelado, gera N lançamentos futuros (1 por mês)
     const baseDate = new Date(dateStr + 'T00:00:00')

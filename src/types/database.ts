@@ -79,6 +79,7 @@ export interface Expense {
   notes?: string | null
   tags?: string[] | null
   expense_type?: 'fixed' | 'variable'
+  is_recurring?: boolean
   created_at: string
 }
 

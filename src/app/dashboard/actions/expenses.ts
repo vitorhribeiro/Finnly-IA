@@ -27,9 +27,29 @@ export async function addExpense(formData: FormData) {
   const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : null
   const notes = String(formData.get('notes') || '').trim() || null
   const expenseType = String(formData.get('expense_type') || 'variable')
+  const isRecurring = formData.get('is_recurring') === 'true'
 
   const installmentsTotal = parseInt(String(formData.get('installments_total') || ''), 10)
   const isInstallment = !isNaN(installmentsTotal) && installmentsTotal > 1
+
+  if (isRecurring && !isInstallment) {
+    const startOfMonth = `${dateStr.slice(0, 7)}-01`
+    const endOfMonth = `${dateStr.slice(0, 7)}-31`
+    const { data: existing } = await supabase
+      .from('expenses')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('is_recurring', true)
+      .eq('category', category)
+      .eq('description', description)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      return { error: 'Já existe um lançamento recorrente idêntico para este mês.' }
+    }
+  }
 
   if (isInstallment) {
     const baseDate = new Date(dateStr + 'T00:00:00')
@@ -57,7 +77,8 @@ export async function addExpense(formData: FormData) {
           p_paid_at: paidAt || currentInstDateStr,
           p_tags: tags,
           p_notes: notes,
-          p_expense_type: expenseType
+          p_expense_type: expenseType,
+          p_is_recurring: isRecurring
         })
         insertPromises.push(promise)
       } else {
@@ -74,7 +95,8 @@ export async function addExpense(formData: FormData) {
           payment_status: false, // Must be false if normal insert
           tags,
           notes,
-          expense_type: expenseType as 'fixed' | 'variable'
+          expense_type: expenseType as 'fixed' | 'variable',
+          is_recurring: isRecurring
         })
         insertPromises.push(promise)
       }
@@ -101,7 +123,8 @@ export async function addExpense(formData: FormData) {
         p_paid_at: paidAt || dateStr,
         p_tags: tags,
         p_notes: notes,
-        p_expense_type: expenseType
+        p_expense_type: expenseType,
+        p_is_recurring: isRecurring
       })
       if (error) return { error: error.message }
     } else {
@@ -116,7 +139,8 @@ export async function addExpense(formData: FormData) {
         payment_status: false, // Force false for direct insert
         tags,
         notes,
-        expense_type: expenseType as 'fixed' | 'variable'
+        expense_type: expenseType as 'fixed' | 'variable',
+        is_recurring: isRecurring
       })
       if (error) return { error: error.message }
     }
@@ -213,6 +237,7 @@ export async function updateExpense(id: string, formData: FormData) {
   const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : null
   const notes = String(formData.get('notes') || '').trim() || null
   const expenseType = String(formData.get('expense_type') || 'variable')
+  const isRecurring = formData.get('is_recurring') === 'true'
 
   const { data: oldExpense } = await supabase.from('expenses').select('*').eq('id', id).eq('user_id', user.id).single()
   if (!oldExpense) return { error: 'Lançamento não encontrado' }
@@ -232,7 +257,8 @@ export async function updateExpense(id: string, formData: FormData) {
       p_paid_at: paidAt || dateStr,
       p_tags: tags,
       p_notes: notes,
-      p_expense_type: expenseType
+      p_expense_type: expenseType,
+      p_is_recurring: isRecurring
     })
 
     if (error) return { error: error.message }
@@ -249,7 +275,8 @@ export async function updateExpense(id: string, formData: FormData) {
       credit_card_id: creditCardId || null,
       tags,
       notes,
-      expense_type: expenseType as 'fixed' | 'variable'
+      expense_type: expenseType as 'fixed' | 'variable',
+      is_recurring: isRecurring
     }
 
     const { error } = await supabase

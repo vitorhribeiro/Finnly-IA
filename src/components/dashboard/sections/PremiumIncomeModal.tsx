@@ -1,11 +1,12 @@
 
-import { useEffect, useState, useTransition, useMemo } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
-import { X, CalendarClock, ChevronDown, CheckCircle2, Search, ArrowDown, Plus, Sparkles, TrendingUp, TrendingDown, Calendar, Wallet, Percent, Pencil, Trash2, Tag, Upload } from 'lucide-react'
+import { X, ChevronDown, Tag, Upload, Plus } from 'lucide-react'
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { QuickCategoryModal, QuickAccountModal } from '@/components/ui/QuickModals'
 import { addIncome, updateIncome } from '@/app/dashboard/actions/incomes'
-import type { Income, IncomeCategory } from '@/types/database'
+import type { Income, IncomeCategory, Account } from '@/types/database'
 
 function formatCurrencyInput(val: string) {
   const digits = val.replace(/\D/g, '')
@@ -14,93 +15,89 @@ function formatCurrencyInput(val: string) {
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// Map strings to Lucide components for dynamic icons
-const iconMap: Record<string, React.ElementType> = {
-  Sparkles, Wallet, Percent, TrendingUp, TrendingDown, Calendar, Plus, CalendarClock
-}
-function DynIcon({ name, size = 18 }: { name: string; size?: number }) {
-  const Icon = iconMap[name] || Sparkles
-  return <Icon size={size} />
-}
-
 export interface PremiumIncomeModalProps {
   income: Income | null
-  defaultValues?: { category?: string; amount?: number; is_recurring?: boolean }
   categories: IncomeCategory[]
+  accounts: Account[]
   onClose: () => void
   onSaved: () => void
-  onRequestNewCategory: () => void
+  onRequestNewCategory?: () => void
 }
 
-export function PremiumIncomeModal({ income, defaultValues, categories, onClose, onSaved, onRequestNewCategory }: PremiumIncomeModalProps) {
+export function PremiumIncomeModal({ income, categories, accounts, onClose, onSaved }: PremiumIncomeModalProps) {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
   }, [])
 
-  const isEdit = !!income
+  const isEdit = !!income && !!income.id
 
   const [amount, setAmount] = useState(() => {
     if (income) return formatCurrencyInput(String(income.amount))
-    if (defaultValues?.amount) return formatCurrencyInput(String(defaultValues.amount))
     return ''
   })
   const [paymentStatus, setPaymentStatus] = useState(income?.payment_status ?? true)
   
+  const getToday = () => new Date().toISOString().split('T')[0]
+  const getYesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0] }
+  
   const [date, setDate] = useState(() => {
     if (income?.date) return income.date
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    return getToday()
   })
   
-  const [category, setCategory] = useState(
-    income?.category ?? defaultValues?.category ?? categories[0]?.name ?? 'Outros'
-  )
+  const [category, setCategory] = useState(income?.category ?? categories[0]?.name ?? 'Outros')
   const [description, setDescription] = useState(income?.description ?? '')
   
+  const [accountId, setAccountId] = useState(income?.account_id ?? '')
+  const [incomeMethod, setIncomeMethod] = useState(income?.income_method ?? '')
   const [incomeType, setIncomeType] = useState<'fixed' | 'variable'>(income?.income_type ?? 'variable')
+  const [repeatType, setRepeatType] = useState<'single' | 'recurring' | 'installments'>(income?.is_recurring ? 'recurring' : (income?.installments_total && income.installments_total > 1 ? 'installments' : 'single'))
+  const [installmentsTotal, setInstallmentsTotal] = useState(income?.installments_total ? String(income.installments_total) : '')
   
-  const [repeatType, setRepeatType] = useState<'single' | 'recurring' | 'installments'>('single')
-  const [installmentsTotal, setInstallmentsTotal] = useState('')
-  
-  useEffect(() => {
-    if (income) {
-      if (income.is_recurring) setRepeatType('recurring')
-      else if (income.installments_total && income.installments_total > 1) {
-        setRepeatType('installments')
-        setInstallmentsTotal(String(income.installments_total))
-      }
-    }
-  }, [income])
-
   const [tags, setTags] = useState<string[]>(income?.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [notes, setNotes] = useState(income?.notes ?? '')
   
-  const [showDetails, setShowDetails] = useState((income?.tags && income.tags.length > 0) || !!income?.notes || income?.income_type === 'fixed' || (income?.is_recurring || (income?.installments_total && income.installments_total > 1)))
+  const [showDetails, setShowDetails] = useState((income?.tags && income.tags.length > 0) || !!income?.notes)
   
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  // Quick modals
+  const [showQuickCategory, setShowQuickCategory] = useState(false)
+  const [showQuickAccount, setShowQuickAccount] = useState(false)
+
+  // Options
+  const accountOptions = [
+    { value: '', label: 'Selecione...', icon: 'Wallet', color: '#90A4AE' },
+    ...accounts.map(a => ({ value: a.id, label: a.name, icon: 'Landmark', color: a.color })),
+    { value: 'NEW', label: '+ Nova conta', icon: 'Plus', color: '#01584C' }
+  ]
+
+  const categoryOptions = [
+    ...categories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color })),
+    { value: 'NEW', label: '+ Nova categoria', icon: 'Plus', color: '#01584C' }
+  ]
+
   function handleAddTag() {
     const t = tagInput.trim()
-    if (t && !tags.includes(t)) {
-      setTags([...tags, t])
-    }
+    if (t && !tags.includes(t)) setTags([...tags, t])
     setTagInput('')
-  }
-
-  function handleRemoveTag(t: string) {
-    setTags(tags.filter(x => x !== t))
   }
 
   function handleSubmit() {
     const cleanAmount = String(amount).replace(/\./g, '').replace(',', '.')
     const amt = parseFloat(cleanAmount)
-    if (!amt || amt <= 0) { setError('Informe um valor válido'); return }
+    if (!amt || amt <= 0) { setError('Informe um valor maior que zero.'); return }
     if (!category) { setError('Selecione uma categoria'); return }
     if (!date) { setError('Informe uma data'); return }
     
+    if (paymentStatus && !accountId) {
+      setError('Se a receita está recebida, você precisa selecionar a Conta de destino.')
+      return
+    }
+
     if (repeatType === 'installments' && (!installmentsTotal || Number(installmentsTotal) < 2)) {
       setError('Parcelamento deve ter no mínimo 2 parcelas.')
       return
@@ -114,16 +111,16 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
     fd.set('payment_status', String(paymentStatus))
     fd.set('income_type', incomeType)
     
+    if (accountId) fd.set('account_id', accountId)
+    if (incomeMethod) fd.set('income_method', incomeMethod)
+    
     if (repeatType === 'recurring') {
       fd.set('is_recurring', 'true')
     } else if (repeatType === 'installments') {
       fd.set('installments_total', installmentsTotal)
     }
     
-    if (tags.length > 0) {
-      tags.forEach(t => fd.append('tags', t))
-    }
-    
+    if (tags.length > 0) tags.forEach(t => fd.append('tags', t))
     if (notes) fd.set('notes', notes)
 
     setError('')
@@ -134,6 +131,43 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
       if (res && 'error' in res) { setError(res.error ?? 'Erro desconhecido'); return }
       onSaved()
     })
+  }
+  
+  // Dynamic financial impact preview
+  const getPreviewText = () => {
+    if (repeatType === 'recurring') {
+      const monthLabel = new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long' })
+      return `Esse lançamento será repetido mensalmente a partir de ${monthLabel}.`
+    }
+    if (!paymentStatus) return 'Essa receita será criada como pendente.'
+    
+    const acc = accounts.find(a => a.id === accountId)
+    return `Será adicionado R$ ${amount || '0,00'} à conta ${acc ? acc.name : 'selecionada'}.`
+  }
+
+  // Generate Installment preview
+  const renderInstallmentPreview = () => {
+    if (repeatType !== 'installments') return null
+    const count = parseInt(installmentsTotal) || 0
+    if (count < 2) return null
+    
+    const val = (parseFloat(String(amount).replace(/\./g, '').replace(',', '.')) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    const baseDate = new Date(date + 'T00:00:00')
+    const list = []
+    
+    for (let i = 1; i <= Math.min(count, 5); i++) {
+      const d = new Date(baseDate)
+      d.setMonth(d.getMonth() + i - 1)
+      const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      list.push(`${i}/${count} — ${ds} — R$ ${val}`)
+    }
+    
+    return (
+      <div style={{ padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 12, marginTop: 12, fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>
+        {list.map((l, i) => <div key={i} style={{ marginBottom: 4 }}>{l}</div>)}
+        {count > 5 && <div>... (mais {count - 5} parcelas)</div>}
+      </div>
+    )
   }
 
   return createPortal(
@@ -159,7 +193,8 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--muted)', marginTop: 4 }}>R$</span>
               <input 
-                type="tel"
+                type="text"
+                inputMode="numeric"
                 placeholder="0,00" 
                 value={amount}
                 onFocus={() => { if (amount === '0,00') setAmount('') }}
@@ -170,11 +205,10 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                   else setAmount(formatCurrencyInput(val))
                 }}
                 required
-                style={{ width: `${Math.max(amount.length, 4)}ch`, maxWidth: '100%', minWidth: 100, fontSize: 40, fontWeight: 900, border: 'none', background: 'transparent', outline: 'none', color: 'var(--ink)', textAlign: 'center', letterSpacing: '-0.02em', padding: 0 }}
+                style={{ width: `${Math.max(amount.length, 4)}ch`, maxWidth: '100%', minWidth: 100, fontSize: 40, fontWeight: 900, border: 'none', background: 'transparent', outline: 'none', color: 'var(--teal)', textAlign: 'center', letterSpacing: '-0.02em', padding: 0 }}
               />
             </div>
             
-            {/* STATUS PAGO/RECEBIDO */}
             <label style={{ 
               display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
               background: paymentStatus ? 'rgba(40, 167, 69, 0.1)' : 'var(--surface-2)',
@@ -193,6 +227,18 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
           </div>
 
           <div className="entry-form">
+            
+            <label>
+              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Data prevista <span className="req">*</span></span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button type="button" onClick={() => setDate(getYesterday())} style={{ background: date === getYesterday() ? 'var(--line)' : 'transparent', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, color: 'var(--muted)', cursor: 'pointer' }}>Ontem</button>
+                  <button type="button" onClick={() => setDate(getToday())} style={{ background: date === getToday() ? 'var(--line)' : 'transparent', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700, color: 'var(--muted)', cursor: 'pointer' }}>Hoje</button>
+                </div>
+              </span>
+              <CustomDatePicker value={date} onChange={setDate} />
+            </label>
+
             <label>
               <span>Descrição</span>
               <input placeholder="Ex: Salário" value={description} onChange={e => setDescription(e.target.value)} />
@@ -201,24 +247,70 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
             <label>
               <span>Categoria <span className="req">*</span></span>
               <CustomSelect
-                options={categories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color }))}
+                options={categoryOptions}
                 value={category}
-                onChange={val => setCategory(val)}
+                onChange={val => {
+                  if (val === 'NEW') setShowQuickCategory(true)
+                  else setCategory(val)
+                }}
                 placeholder="Selecione..."
               />
-              <button 
-                type="button" 
-                onClick={onRequestNewCategory}
-                style={{ background: 'none', border: 'none', color: 'var(--teal)', fontWeight: 700, fontSize: 13, marginTop: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Plus size={14} /> Criar nova categoria
-              </button>
             </label>
 
             <label>
-              <span>Data <span className="req">*</span></span>
-              <CustomDatePicker value={date} onChange={setDate} />
+              <span>Conta de destino {paymentStatus && <span className="req">*</span>}</span>
+              <CustomSelect
+                options={accountOptions}
+                value={accountId}
+                onChange={val => {
+                  if (val === 'NEW') setShowQuickAccount(true)
+                  else setAccountId(val)
+                }}
+                placeholder="Selecione..."
+              />
             </label>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <label style={{ flex: 1 }}>
+                <span>Tipo de entrada</span>
+                <select value={incomeType} onChange={e => setIncomeType(e.target.value as any)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 14, color: 'var(--ink)' }}>
+                  <option value="variable">Variável</option>
+                  <option value="fixed">Fixa</option>
+                </select>
+              </label>
+
+              <label style={{ flex: 1 }}>
+                <span>Forma de recebimento</span>
+                <select value={incomeMethod} onChange={e => setIncomeMethod(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 14, color: 'var(--ink)' }}>
+                  <option value="">Selecione...</option>
+                  <option value="pix">PIX</option>
+                  <option value="transfer">Transferência</option>
+                  <option value="cash">Dinheiro</option>
+                  <option value="boleto">Boleto</option>
+                  <option value="deposit">Depósito</option>
+                  <option value="card">Cartão</option>
+                  <option value="other">Outros</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              <span>Como lançar?</span>
+              <select value={repeatType} onChange={e => setRepeatType(e.target.value as any)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 14, color: 'var(--ink)' }}>
+                <option value="single">Só uma vez</option>
+                <option value="recurring">Todo mês</option>
+                <option value="installments">Parcelado</option>
+              </select>
+              
+              {repeatType === 'installments' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Qtd Parcelas:</span>
+                  <input type="number" min="2" max="99" value={installmentsTotal} onChange={e => setInstallmentsTotal(e.target.value)} style={{ width: 80, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="Ex: 3" />
+                </div>
+              )}
+            </label>
+            
+            {renderInstallmentPreview()}
 
             {/* SANFONA MAIS DETALHES */}
             <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 16 }}>
@@ -227,47 +319,12 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                 onClick={() => setShowDetails(!showDetails)}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--ink)' }}
               >
-                <span style={{ fontSize: 14, fontWeight: 700 }}>Mais detalhes</span>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{showDetails ? 'Menos detalhes' : 'Mais detalhes'}</span>
                 <ChevronDown size={18} style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </button>
 
               {showDetails && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
-                  
-                  {/* TIPO */}
-                  <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Tipo de Receita</span>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', background: incomeType === 'fixed' ? 'rgba(1, 88, 76, 0.1)' : 'var(--surface-2)', border: `1px solid ${incomeType === 'fixed' ? 'var(--teal)' : 'transparent'}`, borderRadius: 10, cursor: 'pointer', color: incomeType === 'fixed' ? 'var(--teal)' : 'var(--muted)', fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
-                        <input type="radio" name="incomeType" checked={incomeType === 'fixed'} onChange={() => setIncomeType('fixed')} style={{ display: 'none' }} />
-                        Receita Fixa
-                      </label>
-                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', background: incomeType === 'variable' ? 'rgba(1, 88, 76, 0.1)' : 'var(--surface-2)', border: `1px solid ${incomeType === 'variable' ? 'var(--teal)' : 'transparent'}`, borderRadius: 10, cursor: 'pointer', color: incomeType === 'variable' ? 'var(--teal)' : 'var(--muted)', fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
-                        <input type="radio" name="incomeType" checked={incomeType === 'variable'} onChange={() => setIncomeType('variable')} style={{ display: 'none' }} />
-                        Receita Variável
-                      </label>
-                    </div>
-                  </label>
-
-                  {/* REPETIR */}
-                  <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Como lançar?</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <select value={repeatType} onChange={e => setRepeatType(e.target.value as any)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 14, color: 'var(--ink)' }}>
-                        <option value="single">Só desta vez</option>
-                        <option value="recurring">Recorrente (todo mês)</option>
-                        <option value="installments">Parcelado</option>
-                      </select>
-                      
-                      {repeatType === 'installments' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Em quantas vezes?</span>
-                          <input type="number" min="2" max="99" value={installmentsTotal} onChange={e => setInstallmentsTotal(e.target.value)} style={{ width: 80, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="Ex: 3" />
-                        </div>
-                      )}
-                    </div>
-                  </label>
-
                   {/* TAGS */}
                   <label>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Tags</span>
@@ -276,7 +333,7 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                         <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--surface-2)', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
                           <Tag size={12} style={{ color: 'var(--muted)' }} />
                           {t}
-                          <button type="button" onClick={() => handleRemoveTag(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--faint)' }}><X size={12} /></button>
+                          <button type="button" onClick={() => setTags(tags.filter(x => x !== t))} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--faint)' }}><X size={12} /></button>
                         </div>
                       ))}
                     </div>
@@ -287,7 +344,7 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                         value={tagInput}
                         onChange={e => setTagInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)' }}
                       />
                       <button type="button" onClick={handleAddTag} className="btn-secondary" style={{ padding: '0 16px' }}>Add</button>
                     </div>
@@ -296,17 +353,12 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                   {/* OBSERVAÇÃO */}
                   <label>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Observação (opcional)</span>
-                    <textarea 
-                      placeholder="Algum detalhe adicional..." 
-                      value={notes} 
-                      onChange={e => setNotes(e.target.value)}
-                      rows={2}
-                    />
+                    <textarea placeholder="Algum detalhe adicional..." value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)' }} />
                   </label>
 
                   {/* ANEXOS */}
                   <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Comprovante</span>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Anexar arquivo</span>
                     <button type="button" disabled style={{ width: '100%', padding: '16px', background: 'var(--surface-2)', border: '1px dashed var(--line-soft)', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'not-allowed', color: 'var(--faint)' }}>
                       <Upload size={20} />
                       <span style={{ fontSize: 13, fontWeight: 600 }}>Anexos estarão disponíveis em breve</span>
@@ -316,6 +368,10 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
                 </div>
               )}
             </div>
+            
+            <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 16, fontWeight: 600, padding: 8, background: 'var(--surface-2)', borderRadius: 8 }}>
+              {getPreviewText()}
+            </div>
 
           </div>
         </div>
@@ -323,12 +379,14 @@ export function PremiumIncomeModal({ income, defaultValues, categories, onClose,
         {/* FOOTER */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', justifyContent: 'flex-end', gap: 12, background: 'var(--surface-2)' }}>
           <button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button type="button" className="btn-primary btn-orange" onClick={handleSubmit} disabled={isPending}>
-            {isPending ? 'Salvando…' : (isEdit ? 'Salvar alterações' : 'Salvar receita')}
+          <button type="button" className="btn-primary" style={{ background: 'var(--teal)' }} onClick={handleSubmit} disabled={isPending}>
+            {isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Salvar Receita')}
           </button>
         </div>
-
       </div>
+      
+      {showQuickCategory && <QuickCategoryModal type="income" onClose={() => setShowQuickCategory(false)} onSaved={(name) => { setShowQuickCategory(false); setCategory(name) }} />}
+      {showQuickAccount && <QuickAccountModal onClose={() => setShowQuickAccount(false)} onSaved={(id) => { setShowQuickAccount(false); setAccountId(id) }} />}
     </>,
     document.body
   )

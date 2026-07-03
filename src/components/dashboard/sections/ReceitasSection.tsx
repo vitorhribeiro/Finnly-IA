@@ -119,10 +119,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return calculateIncomeHealthScore(allIncomes, selectedMonth, allIncomes)
   }, [allIncomes, selectedMonth])
 
+  const HEALTH_SCORE_RADIUS = 38
+  const circumference = 2 * Math.PI * HEALTH_SCORE_RADIUS
   const angle = (saudeMetrics.score * 3.6) - 90
   const angleRad = (angle * Math.PI) / 180
-  const dotX = 50 + 42 * Math.cos(angleRad)
-  const dotY = 50 + 42 * Math.sin(angleRad)
+  const dotX = 50 + HEALTH_SCORE_RADIUS * Math.cos(angleRad)
+  const dotY = 50 + HEALTH_SCORE_RADIUS * Math.sin(angleRad)
 
   const getStatusColor = (status: string) => {
     if (status === 'healthy') return 'var(--teal)'
@@ -312,16 +314,16 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <div className="premium-health-body">
               <div className="premium-health-score-container">
                 <svg viewBox="0 0 100 100" className="premium-health-score-svg">
-                  <circle cx="50" cy="50" r="42" className="premium-health-score-bg-circle" />
+                  <circle cx="50" cy="50" r={HEALTH_SCORE_RADIUS} className="premium-health-score-bg-circle" />
                   <circle 
                     cx="50" 
                     cy="50" 
-                    r="42" 
+                    r={HEALTH_SCORE_RADIUS} 
                     className="premium-health-score-fill-circle" 
                     style={{ 
                       stroke: strokeColor,
-                      strokeDasharray: `${2 * Math.PI * 42}`, 
-                      strokeDashoffset: `${2 * Math.PI * 42 - (saudeMetrics.score / 100) * 2 * Math.PI * 42}` 
+                      strokeDasharray: `${circumference}`, 
+                      strokeDashoffset: `${circumference * (1 - saudeMetrics.score / 100)}` 
                     }} 
                   />
                   {saudeMetrics.score > 0 && (

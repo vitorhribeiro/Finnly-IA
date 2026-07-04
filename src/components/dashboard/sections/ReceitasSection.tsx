@@ -177,10 +177,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         status: 'empty',
         badgeClass: 'status-empty',
         badgeText: 'Sem dados',
-        text: 'Ainda não há receita prevista suficiente para calcular a realização deste mês.',
+        text: 'Aguardando lançamentos.',
         bannerClass: 'banner-empty',
-        bannerTitle: 'Aguardando lançamentos.',
-        bannerSubtitle: 'Cadastre receitas para acompanhar o progresso mensal.',
+        bannerTitle: 'Sem previsão cadastrada.',
         color: 'var(--muted)'
       }
     }
@@ -190,10 +189,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         status: 'not_started',
         badgeClass: 'status-not-started',
         badgeText: 'Não iniciado',
-        text: 'Nenhuma receita prevista foi recebida até agora neste mês.',
+        text: 'Aguardando recebimento.',
         bannerClass: 'banner-not-started',
-        bannerTitle: 'Recebimento ainda não iniciado.',
-        bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+        bannerTitle: 'Nenhuma receita prevista foi recebida ainda.',
         color: 'var(--faint)'
       }
     }
@@ -204,10 +202,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         status: 'completed',
         badgeClass: 'status-completed',
         badgeText: isOver ? 'Acima do previsto' : 'Concluído',
-        text: isOver ? 'Receita realizada acima do previsto.' : 'Você já recebeu toda a receita prevista para este mês.',
+        text: isOver ? 'Meta superada.' : 'Receita recebida.',
         bannerClass: 'banner-completed',
-        bannerTitle: isOver ? 'Meta superada!' : 'Receita totalmente recebida neste mês.',
-        bannerSubtitle: 'Excelente! Sua gestão financeira está no caminho certo.',
+        bannerTitle: 'Meta mensal concluída.',
         color: 'var(--green)'
       }
     }
@@ -217,10 +214,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         status: 'below_expectations',
         badgeClass: 'status-below',
         badgeText: 'Abaixo do esperado',
-        text: 'A realização da receita ainda está abaixo do esperado neste mês.',
+        text: 'Receita abaixo do previsto.',
         bannerClass: 'banner-below',
-        bannerTitle: 'Lançamentos abaixo da meta.',
-        bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+        bannerTitle: `Faltam R$ ${brl(faltante)} para concluir.`,
         color: 'var(--orange-ink)'
       }
     }
@@ -229,10 +225,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       status: 'in_progress',
       badgeClass: 'status-in-progress',
       badgeText: 'Em andamento',
-      text: 'Boa parte da receita prevista já foi recebida neste mês.',
+      text: 'Recebimento em andamento.',
       bannerClass: 'banner-in-progress',
-      bannerTitle: 'Receitas em andamento.',
-      bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+      bannerTitle: `Faltam R$ ${brl(faltante)} para concluir.`,
       color: 'var(--gold)'
     }
   }, [hasForecast, recebido, pctRealizacaoDisplayVal, faltante])
@@ -251,31 +246,27 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       return {
         status: 'empty',
         bannerClass: 'banner-empty',
-        title: 'Nenhum lançamento previsto.',
-        subtitle: 'Cadastre receitas para iniciar o controle.'
+        title: 'Cadastre receitas para acompanhar o período.'
       }
     }
     if (atrasado > 0) {
       return {
         status: 'atrasado',
         bannerClass: 'banner-atrasado',
-        title: 'Existem receitas em atraso.',
-        subtitle: `R$ ${brl(atrasado)} estão atrasados neste período.`
+        title: `R$ ${brl(atrasado)} atrasados neste período.`
       }
     }
     if (pendente > 0) {
       return {
         status: 'pendente',
         bannerClass: 'banner-pendente',
-        title: 'Receitas pendentes no período.',
-        subtitle: `Ainda há R$ ${brl(pendente)} pendentes para receber.`
+        title: `R$ ${brl(pendente)} pendentes para receber.`
       }
     }
     return {
       status: 'recebido',
       bannerClass: 'banner-recebido',
-      title: 'Receita totalmente recebida.',
-      subtitle: 'Nenhuma pendência neste período.'
+      title: 'Receita totalmente recebida neste período.'
     }
   }, [totalPeriodo, pendente, atrasado])
 
@@ -472,7 +463,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               </div>
               <div className="premium-periodo-banner-content">
                 <span className="premium-periodo-banner-title">{periodoState.title}</span>
-                <span className="premium-periodo-banner-subtitle">{periodoState.subtitle}</span>
               </div>
               <div className="premium-periodo-banner-illustration">
                 <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
@@ -499,7 +489,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 <span className="premium-realizacao-title">REALIZAÇÃO DO MÊS</span>
               </div>
               <div className="premium-realizacao-info">
-                <CardInfoTooltip content="Mostra quanto da receita prevista para o mês já foi efetivamente recebida." />
+                <CardInfoTooltip content="Compara o valor já recebido com a receita prevista para o mês." />
               </div>
             </div>
 
@@ -570,7 +560,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               </div>
               <div className="premium-realizacao-banner-content">
                 <span className="premium-realizacao-banner-title">{realizacaoState.bannerTitle}</span>
-                <span className="premium-realizacao-banner-subtitle">{realizacaoState.bannerSubtitle}</span>
               </div>
             </div>
           </div>
@@ -587,7 +576,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 <span className="premium-health-title">SAÚDE DA RECEITA</span>
               </div>
               <div className="premium-health-info">
-                <CardInfoTooltip content="A Saúde da Receita considera atrasos, previsibilidade, concentração das fontes e variação em relação aos meses anteriores." />
+                <CardInfoTooltip content="Considera atrasos, previsibilidade, concentração das fontes e variação histórica." />
               </div>
             </div>
 
@@ -640,7 +629,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
                 <div className="premium-health-indicator-content">
                   <span className="premium-health-indicator-title">{saudeMetrics.indicators.predictability.label}</span>
-                  <span className="premium-health-indicator-desc">{saudeMetrics.indicators.predictability.description}</span>
                 </div>
               </div>
 
@@ -656,7 +644,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
                 <div className="premium-health-indicator-content">
                   <span className="premium-health-indicator-title">{saudeMetrics.indicators.delays.label}</span>
-                  <span className="premium-health-indicator-desc">{saudeMetrics.indicators.delays.description}</span>
                 </div>
               </div>
 
@@ -672,7 +659,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
                 <div className="premium-health-indicator-content">
                   <span className="premium-health-indicator-title">{saudeMetrics.indicators.diversification.label}</span>
-                  <span className="premium-health-indicator-desc">{saudeMetrics.indicators.diversification.description}</span>
                 </div>
               </div>
             </div>
@@ -749,7 +735,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           <div className="card" style={{ height: '100%', padding: '20px' }}>
             <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
               Dependência da Principal Fonte
-              <CardInfoTooltip content="Mostra se sua renda está concentrada demais em uma única fonte." />
+              <CardInfoTooltip content="Mostra quanto a maior fonte representa da receita prevista no período." />
             </div>
             {catRanking.length > 0 ? (
               (() => {
@@ -758,17 +744,17 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 let statusText = 'Saudável';
                 let statusColor = 'var(--teal)';
                 let statusBg = 'rgba(1,88,76,0.1)';
-                let msg = 'Sua receita está bem distribuída entre fontes diferentes.';
+                let msg = 'Receita bem distribuída.';
                 if (pct > 70) {
                   statusText = 'Alta dependência';
                   statusColor = 'var(--neg)';
                   statusBg = 'rgba(239,68,68,0.1)';
-                  msg = 'concentra praticamente toda a receita prevista deste período.';
+                  msg = `concentra ${pct}% da receita prevista.`;
                 } else if (pct > 40) {
                   statusText = 'Atenção';
                   statusColor = 'var(--orange-ink)';
                   statusBg = 'rgba(245,124,0,0.1)';
-                  msg = 'tem peso relevante na sua renda deste mês.';
+                  msg = 'tem peso relevante na sua renda.';
                 }
 
                 return (
@@ -783,13 +769,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                       <div style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 3 }} />
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, margin: 0 }}>
-                      {pct > 40 ? (
-                        <>
-                          <strong>{topCat[0]}</strong> {msg}
-                        </>
-                      ) : (
-                        msg
-                      )}
+                      <strong>{topCat[0]}</strong> {msg}
                     </p>
                   </div>
                 )

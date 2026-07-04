@@ -233,19 +233,19 @@ export function calculateIncomeHealthScore(
   if (score >= 80) {
     status = 'healthy'
     label = 'SAUDÁVEL'
-    description = 'Sua receita está saudável, com boa previsibilidade e sem atrasos relevantes.'
+    description = 'Receita saudável e com boa previsibilidade.'
   } else if (score >= 60) {
     status = 'light_attention'
     label = 'ATENÇÃO LEVE'
-    description = 'Sua receita está estável, mas ainda há pontos que merecem atenção.'
+    description = 'Estável, mas com pontos de atenção.'
   } else if (score >= 40) {
     status = 'attention'
     label = 'ATENÇÃO'
-    description = 'Sua receita exige atenção: há pendências, atrasos ou concentração elevada.'
+    description = 'Requer atenção: atrasos ou concentração elevada.'
   } else {
     status = 'critical'
     label = 'CRÍTICO'
-    description = 'Sua receita está em estado crítico. Revise atrasos, fontes de renda e previsibilidade.'
+    description = 'Estado crítico. Revise pendências e fontes de renda.'
   }
 
   return {

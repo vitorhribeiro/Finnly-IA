@@ -161,9 +161,15 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   // --- Realização do Mês Calculations ---
   const hasForecast = totalPeriodo > 0
   const pctRealizacaoRaw = hasForecast ? (recebido / totalPeriodo) * 100 : 0
-  const pctRealizacaoDisplay = Math.round(pctRealizacaoRaw)
+  const pctRealizacaoDisplayVal = Math.round(pctRealizacaoRaw)
   const pctBar = Math.min(100, Math.max(0, pctRealizacaoRaw))
   const faltante = Math.max(0, totalPeriodo - recebido)
+
+  const pctRealizacaoDisplayStr = useMemo(() => {
+    if (totalPeriodo <= 0 || recebido <= 0) return '0'
+    if (pctRealizacaoRaw > 0 && pctRealizacaoRaw < 1) return '<1'
+    return `${Math.round(pctRealizacaoRaw)}`
+  }, [totalPeriodo, recebido, pctRealizacaoRaw])
 
   const realizacaoState = useMemo(() => {
     if (!hasForecast) {
@@ -192,8 +198,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       }
     }
 
-    if (pctRealizacaoDisplay >= 100) {
-      const isOver = pctRealizacaoDisplay > 100
+    if (pctRealizacaoDisplayVal >= 100) {
+      const isOver = pctRealizacaoDisplayVal > 100
       return {
         status: 'completed',
         badgeClass: 'status-completed',
@@ -206,7 +212,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       }
     }
 
-    if (pctRealizacaoDisplay < 50) {
+    if (pctRealizacaoDisplayVal < 50) {
       return {
         status: 'below_expectations',
         badgeClass: 'status-below',
@@ -229,7 +235,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
       color: 'var(--gold)'
     }
-  }, [hasForecast, recebido, pctRealizacaoDisplay, faltante])
+  }, [hasForecast, recebido, pctRealizacaoDisplayVal, faltante])
 
   // --- Receitas do Período Calculations ---
   const pctRecebido = totalPeriodo > 0 ? Math.round((recebido / totalPeriodo) * 100) : 0
@@ -262,7 +268,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         status: 'pendente',
         bannerClass: 'banner-pendente',
         title: 'Receitas pendentes no período.',
-        subtitle: `Ainda há R$ ${brl(pendente)} para receber.`
+        subtitle: `Ainda há R$ ${brl(pendente)} pendentes para receber.`
       }
     }
     return {
@@ -390,19 +396,19 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               {propRecebido > 0 && (
                 <div 
                   className="premium-periodo-progress-segment" 
-                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)' }} 
+                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)', minWidth: '4px' }} 
                 />
               )}
               {propPendente > 0 && (
                 <div 
                   className="premium-periodo-progress-segment" 
-                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)' }} 
+                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)', minWidth: '4px' }} 
                 />
               )}
               {propAtrasado > 0 && (
                 <div 
                   className="premium-periodo-progress-segment" 
-                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)' }} 
+                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)', minWidth: '4px' }} 
                 />
               )}
             </div>
@@ -500,7 +506,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <div className="premium-realizacao-body">
               <div className="premium-realizacao-score-row">
                 <span className={`premium-realizacao-percentage tabnums${hidden ? ' priv' : ''}`}>
-                  {pctRealizacaoDisplay}%
+                  {pctRealizacaoDisplayStr}%
                 </span>
                 <span className={`premium-realizacao-badge ${realizacaoState.badgeClass}`}>
                   {realizacaoState.status === 'completed' && <CheckCircle2 size={12} />}
@@ -757,12 +763,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                   statusText = 'Alta dependência';
                   statusColor = 'var(--neg)';
                   statusBg = 'rgba(239,68,68,0.1)';
-                  msg = 'Sua receita depende muito de uma única fonte neste período.';
+                  msg = 'concentra praticamente toda a receita prevista deste período.';
                 } else if (pct > 40) {
                   statusText = 'Atenção';
                   statusColor = 'var(--orange-ink)';
                   statusBg = 'rgba(245,124,0,0.1)';
-                  msg = 'Uma fonte tem peso relevante na sua renda deste mês.';
+                  msg = 'tem peso relevante na sua renda deste mês.';
                 }
 
                 return (
@@ -777,7 +783,13 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                       <div style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 3 }} />
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, margin: 0 }}>
-                      <strong>{topCat[0]}</strong>: {msg}
+                      {pct > 40 ? (
+                        <>
+                          <strong>{topCat[0]}</strong> {msg}
+                        </>
+                      ) : (
+                        msg
+                      )}
                     </p>
                   </div>
                 )
@@ -813,9 +825,17 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 })}
               </div>
             ) : (
-              <p className="empty-msg" style={{ padding: '20px 0', fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.4 }}>
-                Ainda há pouco histórico para comparar tendências.
-              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
+                <div style={{ background: 'rgba(13, 61, 55, 0.03)', border: '1px dashed rgba(13, 61, 55, 0.1)', borderRadius: '12px', padding: '10px', marginBottom: 10, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CalendarClock size={20} style={{ opacity: 0.5 }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>
+                  Ainda há pouco histórico
+                </span>
+                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4, margin: 0, maxWidth: 180 }}>
+                  Continue registrando receitas para comparar tendências.
+                </p>
+              </div>
             )}
           </div>
         </div>

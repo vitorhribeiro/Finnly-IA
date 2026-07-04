@@ -605,76 +605,25 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               )}
             </div>
 
-            <div className="premium-periodo-grid">
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-recebido">
-                    <CheckCircle2 size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Recebido</span>
-                </div>
-                <span className={`premium-periodo-item-value val-recebido tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(recebido)}
-                </span>
-                <span className="premium-periodo-item-pill pill-recebido">
-                  {pctRecebido}% do total
-                </span>
-              </div>
-
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-pendente">
-                    <TrendingUp size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Pendente</span>
-                </div>
-                <span className={`premium-periodo-item-value val-pendente tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(pendente)}
-                </span>
-                <span className="premium-periodo-item-pill pill-pendente">
-                  {pctPendente}% do total
-                </span>
-              </div>
-
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-atrasado">
-                    <AlertCircle size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Atrasado</span>
-                </div>
-                <span className={`premium-periodo-item-value val-atrasado tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(atrasado)}
-                </span>
-                <span className="premium-periodo-item-pill pill-atrasado">
-                  {pctAtrasado}% do total
-                </span>
-              </div>
-            </div>
-
-            <div className={`premium-periodo-banner ${periodoState.bannerClass}`}>
-              <div className="premium-periodo-banner-icon">
-                {periodoState.status === 'recebido' ? (
-                  <CheckCircle2 size={14} />
-                ) : periodoState.status === 'atrasado' ? (
-                  <AlertCircle size={14} />
-                ) : (
-                  <TrendingUp size={14} />
-                )}
-              </div>
-              <div className="premium-periodo-banner-content">
-                <span className="premium-periodo-banner-title">{periodoState.title}</span>
-              </div>
-              <div className="premium-periodo-banner-illustration">
-                <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
-                  <path d="M2 22L12 17L22 19L32 10L42 12L58 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="17" r="2" fill="currentColor" />
-                  <circle cx="22" cy="19" r="2" fill="currentColor" />
-                  <circle cx="32" cy="10" r="2" fill="currentColor" />
-                  <circle cx="42" cy="12" r="2" fill="currentColor" />
-                  <circle cx="58" cy="2" r="2" fill="currentColor" />
-                </svg>
-              </div>
+            {/* Micro resumo */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginTop: 4 }}>
+              {totalPeriodo <= 0 ? (
+                'Cadastre receitas para acompanhar o período.'
+              ) : recebido >= totalPeriodo && totalPeriodo > 0 ? (
+                'Receita totalmente recebida neste período.'
+              ) : (
+                <>
+                  <span className={hidden ? 'priv' : ''}>R$ {brl(recebido)} recebido</span>
+                  {' · '}
+                  <span className={hidden ? 'priv' : ''}>R$ {brl(pendente)} pendente</span>
+                  {atrasado > 0 && (
+                    <>
+                      {' · '}
+                      <span className={hidden ? 'priv' : ''}>R$ {brl(atrasado)} atrasado</span>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
           <div className="premium-realizacao-card">
@@ -722,44 +671,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               </p>
             </div>
 
-            <div className="premium-realizacao-stats-grid">
-              <div className="premium-realizacao-stat-item">
-                <div className="premium-realizacao-stat-icon-wrapper">
-                  <Wallet size={12} />
-                </div>
-                <div className="premium-realizacao-stat-content">
-                  <span className="premium-realizacao-stat-label">Previsto</span>
-                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
-                    R$ {brl(totalPeriodo)}
-                  </span>
-                </div>
+            {totalPeriodo > 0 && recebido > 0 && (
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginTop: 8 }}>
+                <span className={hidden ? 'priv' : ''}>R$ {brl(recebido)}</span> de <span className={hidden ? 'priv' : ''}>R$ {brl(totalPeriodo)}</span> recebidos
               </div>
-
-              <div className="premium-realizacao-stat-item">
-                <div className="premium-realizacao-stat-icon-wrapper">
-                  <DollarSign size={12} />
-                </div>
-                <div className="premium-realizacao-stat-content">
-                  <span className="premium-realizacao-stat-label">Recebido</span>
-                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
-                    R$ {brl(recebido)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className={`premium-realizacao-banner ${realizacaoState.bannerClass}`}>
-              <div className="premium-realizacao-banner-icon">
-                {realizacaoState.status === 'completed' ? (
-                  <CheckCircle2 size={14} />
-                ) : (
-                  <TrendingUp size={14} />
-                )}
-              </div>
-              <div className="premium-realizacao-banner-content">
-                <span className="premium-realizacao-banner-title">{realizacaoState.bannerTitle}</span>
-              </div>
-            </div>
+            )}
           </div>
           <div className="premium-health-card">
             <div className="premium-health-header">
@@ -811,52 +727,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               </div>
             </div>
 
-            <div className="premium-health-footer">
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.predictability.level), 
-                    background: getLevelBg(saudeMetrics.indicators.predictability.level) 
-                  }}
-                >
-                  <TrendingUp size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.predictability.label}</span>
-                </div>
-              </div>
-
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.delays.level), 
-                    background: getLevelBg(saudeMetrics.indicators.delays.level) 
-                  }}
-                >
-                  <CalendarClock size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.delays.label}</span>
-                </div>
-              </div>
-
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.diversification.level), 
-                    background: getLevelBg(saudeMetrics.indicators.diversification.level) 
-                  }}
-                >
-                  <PieChart size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.diversification.label}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

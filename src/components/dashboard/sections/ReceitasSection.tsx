@@ -367,8 +367,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       {/* --- PRIMEIRA DOBRA: GRID PRINCIPAL --- */}
       <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
         <div className="receitas-main-col">
-      <section className="card fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '20px 20px 0 20px' }}>
+      <section className="card fade-up" style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
               <div className="card-title" style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Detalhamento das Entradas</div>

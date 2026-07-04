@@ -3396,3 +3396,51 @@ input:focus, select:focus, textarea:focus {
 
 
 
+
+/* ============================================================ RECEITAS LAYOUT REORG */
+.receitas-primary-grid {
+  display: grid;
+  grid-template-columns: 8fr 4fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.receitas-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.receitas-rail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .receitas-primary-grid {
+    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column-reverse;
+  }
+}
+
+/* Make cards compact when inside the rail */
+.receitas-rail-col .premium-periodo-card,
+.receitas-rail-col .premium-realizacao-card,
+.receitas-rail-col .premium-health-card {
+  padding: 16px;
+  gap: 12px;
+}
+
+.receitas-rail-col .premium-periodo-value,
+.receitas-rail-col .premium-realizacao-percentage {
+  font-size: 26px;
+}
+
+.receitas-rail-col .premium-periodo-grid-item,
+.receitas-rail-col .premium-realizacao-stat-item {
+  padding: 8px 10px;
+}

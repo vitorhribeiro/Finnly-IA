@@ -67,9 +67,10 @@ export interface PremiumIncomeModalProps {
   onClose: () => void
   onSaved: () => void
   onRequestNewCategory?: () => void
+  defaultDate?: string
 }
 
-export function PremiumIncomeModal({ income, categories, accounts, onClose, onSaved }: PremiumIncomeModalProps) {
+export function PremiumIncomeModal({ income, categories, accounts, onClose, onSaved, defaultDate }: PremiumIncomeModalProps) {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
@@ -92,6 +93,7 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
   
   const [date, setDate] = useState(() => {
     if (income?.date) return income.date
+    if (defaultDate) return defaultDate
     return getTodayLocal()
   })
 

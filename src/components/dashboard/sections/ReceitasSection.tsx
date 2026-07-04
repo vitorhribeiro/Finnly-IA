@@ -88,6 +88,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   }
 
   function handleToggleStatus(income: Income) {
+    if (!income.account_id) {
+      alert("Escolha uma conta de destino antes de marcar como recebida.")
+      setEditIncome(income)
+      setInsightDrawerOpen(false)
+      return
+    }
     startTransition(async () => {
       try {
         const fd = new FormData()
@@ -396,7 +402,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       {/* --- PRIMEIRA DOBRA: GRID PRINCIPAL --- */}
       <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
         <div className="receitas-main-col">
-      <section className="card fade-up" style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <section id="detalhamento-entradas" className="card fade-up" style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
@@ -650,43 +656,44 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           </div>
 
           {/* Card Compacto: Realização do Mês */}
-          <div className="compact-insight-card premium-card-insight">
+          <div className="compact-insight-card period-card">
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="compact-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(245,166,35,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Percent size={16} style={{ color: 'var(--orange)' }} />
+                <div style={{ width: 28, height: 28, borderRadius: 14, background: 'rgba(245, 124, 0, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Percent size={14} style={{ color: 'var(--orange)' }} />
                 </div>
                 <span className="compact-card-title">REALIZAÇÃO DO MÊS</span>
               </div>
               <CardInfoTooltip content="Progresso do recebimento frente ao previsto." />
             </div>
 
-            {/* Middle */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: -2 }}>
-              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 28, fontWeight: 800, color: 'var(--teal-900)', lineHeight: 1, letterSpacing: '-0.5px' }}>
-                {pctRealizacaoDisplayStr}%
+            <div className="compact-card-body">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 30, fontWeight: 800, color: 'var(--teal-900)', letterSpacing: '-0.5px', lineHeight: 1 }}>
+                  {pctRealizacaoDisplayStr}%
+                </div>
+                <div style={{ background: realizacaoState.color === 'var(--neg)' ? 'rgba(239,68,68,0.1)' : realizacaoState.color === 'var(--green)' ? 'rgba(34,197,94,0.1)' : 'rgba(245, 124, 0, 0.08)', color: realizacaoState.color, padding: '4px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' }}>
+                  {realizacaoState.badgeText === 'Abaixo do esperado' ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
+                  {realizacaoState.badgeText}
+                </div>
               </div>
-              <div style={{ background: realizacaoState.color === 'var(--neg)' ? 'rgba(239,68,68,0.1)' : realizacaoState.color === 'var(--green)' ? 'rgba(34,197,94,0.1)' : 'rgba(245,166,35,0.1)', color: realizacaoState.color, padding: '2px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' }}>
-                {realizacaoState.badgeText === 'Abaixo do esperado' ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
-                {realizacaoState.badgeText}
+
+              <div className="compact-progress-bar premium-bar">
+                <div style={{ width: `max(4px, ${pctBar}%)`, height: '100%', background: realizacaoState.color, borderRadius: 3 }} />
               </div>
-            </div>
 
-            {/* Bar */}
-            <div style={{ width: '100%', height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `max(4px, ${pctBar}%)`, height: '100%', background: realizacaoState.color, borderRadius: 3 }} />
-            </div>
-
-            {/* Subtitle */}
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-              <strong style={{ color: 'var(--teal-900)' }} className={hidden ? 'priv' : ''}>R$ {brl(recebido)}</strong> de <strong style={{ color: 'var(--teal-900)' }} className={hidden ? 'priv' : ''}>R$ {brl(totalPeriodo)}</strong> recebidos
+              <div className="compact-card-subtitle period-legend">
+                <span className={hidden ? 'priv' : ''}>
+                  <strong style={{ color: 'var(--teal-900)' }}>R$ {brl(recebido)}</strong> de <strong style={{ color: 'var(--teal-900)' }}>R$ {brl(totalPeriodo)}</strong> recebidos
+                </span>
+              </div>
             </div>
 
             {/* Footer */}
-            <div className="compact-insight-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 'auto' }}>
+            <div className="compact-insight-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
               {faltante > 0 ? (
-                <div style={{ background: 'rgba(245,166,35,0.1)', color: 'var(--orange-ink)', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ background: 'rgba(245, 124, 0, 0.08)', color: 'var(--orange-ink)', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <AlertCircle size={12} style={{ color: 'var(--orange)' }} /> Faltam <span className={hidden ? 'priv' : ''}>R$ {brl(faltante)}</span>
                 </div>
               ) : (
@@ -1061,6 +1068,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           onClose={() => { setShowIncomeModal(false); setEditIncome(null) }}
           onSaved={handleSaved}
           onRequestNewCategory={() => {}}
+          defaultDate={selectedMonth === new Date().toISOString().slice(0, 7) ? undefined : `${selectedMonth}-01`}
         />
       )}
 
@@ -1070,12 +1078,20 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         type={insightDrawerType}
         data={{
           period: { totalPeriodo, recebido, pendente, atrasado, propRecebido, propPendente, propAtrasado, periodoState, hidden, currentIncomes, categories },
-          realization: { pctRealizacaoDisplayStr, realizacaoState, pctBar, recebido, totalPeriodo, faltante, hidden },
+          realization: { pctRealizacaoDisplayStr, realizacaoState, pctBar, recebido, totalPeriodo, faltante, hidden, currentIncomes, categories, atrasado, pendente, selectedMonth },
           health: { saudeMetrics, hidden }
         }}
         onEdit={(inc) => { setEditIncome(inc); setInsightDrawerOpen(false); }}
         onToggle={handleToggleStatus}
-        onViewAll={() => { setInsightDrawerOpen(false); window.scrollTo({ top: 400, behavior: 'smooth' }) }}
+        onViewAll={() => {
+          setInsightDrawerOpen(false)
+          const el = document.getElementById("detalhamento-entradas")
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          } else {
+            window.scrollTo({ top: 400, behavior: 'smooth' })
+          }
+        }}
       />
     </div>
   )

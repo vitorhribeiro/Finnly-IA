@@ -3644,14 +3644,28 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg);
   box-shadow: -8px 0 32px rgba(0,0,0,0.1);
   transform: translateX(100%);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-top-left-radius 0.25s ease, border-bottom-left-radius 0.25s ease;
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .insight-drawer.open {
   transform: translateX(0);
+}
+
+@media (min-width: 769px) {
+  .insight-drawer {
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+  }
+  .insight-drawer.at-top {
+    border-top-left-radius: 28px;
+  }
+  .insight-drawer.at-bottom {
+    border-bottom-left-radius: 28px;
+  }
 }
 
 .drawer-close-btn {

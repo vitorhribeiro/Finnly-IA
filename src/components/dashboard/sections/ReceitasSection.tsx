@@ -113,6 +113,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return res
   }, [allIncomes, selectedMonth])
   const maxHVal = Math.max(...history4m.map(m => m.total), 1)
+  const hasPreviousHistory = history4m.slice(0, 3).some(m => m.total > 0)
 
   // --- Saúde da Receita Calculations ---
   const saudeMetrics = useMemo(() => {
@@ -246,7 +247,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       <div className="fd-grid" style={{ rowGap: 16 }}>
         {/* ROW 1: Resumo, Realização, Saúde */}
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px' }}>
+          <div className="card" style={{ height: '100%', padding: '20px', display: 'flex', flexDirection: 'column' }}>
             <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
               Receitas do Período
               <CardInfoTooltip content="Soma de todas as receitas previstas ou recebidas no mês selecionado." />
@@ -268,11 +269,14 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ color: 'var(--neg)' }}>R$ {brl(atrasado)}</span>
               </div>
             </div>
+            <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(1, 88, 76, 0.04)', fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
+              {atrasado === 0 ? '✓ Nenhuma receita atrasada.' : '⚠ Existem pendências em atraso.'}
+            </div>
           </div>
         </div>
 
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px' }}>
+          <div className="card" style={{ height: '100%', padding: '20px', display: 'flex', flexDirection: 'column' }}>
             <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
               Realização do Mês
               <CardInfoTooltip content="Mostra quanto da sua receita prevista já foi realmente recebida." />
@@ -290,6 +294,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                     ? "Você já recebeu toda a receita prevista para este mês." 
                     : `Faltam R$ ${brl(pendente)} para atingir a projeção mensal.`}
                 </p>
+                <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(1, 88, 76, 0.04)', fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
+                  {pendente === 0 ? '✓ Receita totalmente recebida neste mês.' : 'Acompanhe as próximas liquidações.'}
+                </div>
               </>
             ) : (
               <p className="empty-msg" style={{ padding: '20px 0', fontSize: 12 }}>Nenhuma receita lançada.</p>
@@ -521,7 +528,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               Histórico (4 Meses)
               <CardInfoTooltip content="Compara sua receita recente para identificar crescimento, queda ou estabilidade." />
             </div>
-            {history4m.reduce((s, m) => s + m.total, 0) > 0 ? (
+            {hasPreviousHistory ? (
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 70, padding: '0 4px' }}>
                 {history4m.map((m, i) => {
                   const barH = maxHVal > 0 ? Math.max(10, Math.round((m.total / maxHVal) * 50)) : 10
@@ -540,7 +547,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 })}
               </div>
             ) : (
-              <p className="empty-msg" style={{ padding: '10px 0', fontSize: 12 }}>Poucos dados.</p>
+              <p className="empty-msg" style={{ padding: '20px 0', fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.4 }}>
+                Ainda há pouco histórico para comparar tendências.
+              </p>
             )}
           </div>
         </div>

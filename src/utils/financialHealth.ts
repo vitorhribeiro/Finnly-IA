@@ -175,23 +175,26 @@ export function calculateIncomeHealthScore(
     predictabilityDesc = 'Renda concentrada em variáveis.'
   }
 
-  // 3. Diversification Penalties
+  // 3. Diversificação Penalties
   let diversificationLevel: 'good' | 'medium' | 'bad' = 'good'
   let diversificationLabel = 'Boa diversificação'
   let diversificationDesc = 'Receita bem distribuída.'
 
-  if (sourceCount >= 3 && topSourceRatio < 0.50) {
+  if (topSourceRatio < 0.50) {
     // good diversification, no penalty
-  } else if (topSourceRatio >= 0.50 && topSourceRatio < 0.80) {
+    diversificationLevel = 'good'
+    diversificationLabel = 'Boa diversificação'
+    diversificationDesc = 'Receita bem distribuída.'
+  } else if (topSourceRatio >= 0.50 && topSourceRatio < 0.70) {
     score -= 10
     diversificationLevel = 'medium'
     diversificationLabel = 'Concentração moderada'
-    diversificationDesc = 'Principal fonte até 80%.'
+    diversificationDesc = `Principal fonte até ${Math.round(topSourceRatio * 100)}%.`
   } else {
     score -= 18
     diversificationLevel = 'bad'
     diversificationLabel = 'Alta concentração'
-    diversificationDesc = 'Receita depende muito de uma fonte.'
+    diversificationDesc = `Principal fonte representa ${Math.round(topSourceRatio * 100)}%.`
   }
 
   if (sourceCount <= 1) {

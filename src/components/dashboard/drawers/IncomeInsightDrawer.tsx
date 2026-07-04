@@ -282,6 +282,44 @@ export function IncomeInsightDrawer({ isOpen, onClose, type, data, onEdit, onTog
             </div>
           )}
         </div>
+
+        {/* Pinned Fixed Footer */}
+        <div className="drawer-fixed-footer" style={{ position: 'sticky', bottom: 0, zIndex: 100, paddingBottom: 48, background: 'var(--bg)', borderTop: '1px solid var(--line-soft)', width: '100%' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', width: '100%' }}>
+            {onViewAll && (
+              <button 
+                onClick={onViewAll}
+                className="ai-chip-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--line-strong)', background: 'transparent', color: 'var(--ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <ArrowRight size={14} /> Ver lançamentos
+              </button>
+            )}
+            {onAdd && (
+              <button 
+                onClick={onAdd}
+                className="ai-chip-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: 'none', background: 'var(--teal)', color: 'white', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <Wallet size={14} /> Novo recebimento
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                if (onAsk) {
+                  onAsk("Quero uma análise detalhada sobre as receitas do período e minha distribuição por categorias.")
+                  onClose()
+                } else {
+                  alert("Análise com IA em breve.")
+                }
+              }}
+              className="ai-chip-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--orange)', background: 'transparent', color: 'var(--orange-ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <Sparkles size={14} /> Analisar com IA
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -617,43 +655,43 @@ export function IncomeInsightDrawer({ isOpen, onClose, type, data, onEdit, onTog
             </div>
           )}
 
-          {/* Ações Rápidas */}
-          <div style={{ marginBottom: 24 }}>
-            <h4 className="drawer-section-title">Ações rápidas</h4>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {onAdd && (
-                <button 
-                  onClick={onAdd}
-                  className="ai-chip-btn"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--teal)', background: 'transparent', color: 'var(--teal)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  <Wallet size={14} /> Novo recebimento
-                </button>
-              )}
-              {onViewAll && (
-                <button 
-                  onClick={onViewAll}
-                  className="ai-chip-btn"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--line-strong)', background: 'transparent', color: 'var(--ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  <ArrowRight size={14} /> Ver lançamentos
-                </button>
-              )}
+        </div>
+
+        {/* Pinned Fixed Footer */}
+        <div className="drawer-fixed-footer" style={{ position: 'sticky', bottom: 0, zIndex: 100, paddingBottom: 48, background: 'var(--bg)', borderTop: '1px solid var(--line-soft)', width: '100%' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', width: '100%' }}>
+            {onViewAll && (
               <button 
-                onClick={() => {
-                  if (onAsk) {
-                    onAsk("Quero uma análise detalhada sobre a realização da minha receita deste mês e como garantir que eu atinja a meta.")
-                    onClose()
-                  } else {
-                    alert("Análise com IA em breve.")
-                  }
-                }}
+                onClick={onViewAll}
                 className="ai-chip-btn"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--orange)', background: 'transparent', color: 'var(--orange-ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--line-strong)', background: 'transparent', color: 'var(--ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
               >
-                <Sparkles size={14} /> Analisar com IA
+                <ArrowRight size={14} /> Ver lançamentos
               </button>
-            </div>
+            )}
+            {onAdd && (
+              <button 
+                onClick={onAdd}
+                className="ai-chip-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: 'none', background: 'var(--teal)', color: 'white', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <Wallet size={14} /> Novo recebimento
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                if (onAsk) {
+                  onAsk("Quero uma análise detalhada sobre a realização da minha receita deste mês e como garantir que eu atinja a meta.")
+                  onClose()
+                } else {
+                  alert("Análise com IA em breve.")
+                }
+              }}
+              className="ai-chip-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--orange)', background: 'transparent', color: 'var(--orange-ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <Sparkles size={14} /> Analisar com IA
+            </button>
           </div>
         </div>
       </div>

@@ -231,6 +231,48 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     }
   }, [hasForecast, recebido, pctRealizacaoDisplay, faltante])
 
+  // --- Receitas do Período Calculations ---
+  const pctRecebido = totalPeriodo > 0 ? Math.round((recebido / totalPeriodo) * 100) : 0
+  const pctPendente = totalPeriodo > 0 ? Math.round((pendente / totalPeriodo) * 100) : 0
+  const pctAtrasado = totalPeriodo > 0 ? Math.round((atrasado / totalPeriodo) * 100) : 0
+
+  const propRecebido = totalPeriodo > 0 ? (recebido / totalPeriodo) * 100 : 0
+  const propPendente = totalPeriodo > 0 ? (pendente / totalPeriodo) * 100 : 0
+  const propAtrasado = totalPeriodo > 0 ? (atrasado / totalPeriodo) * 100 : 0
+
+  const periodoState = useMemo(() => {
+    if (totalPeriodo <= 0) {
+      return {
+        status: 'empty',
+        bannerClass: 'banner-empty',
+        title: 'Nenhum lançamento previsto.',
+        subtitle: 'Cadastre receitas para iniciar o controle.'
+      }
+    }
+    if (atrasado > 0) {
+      return {
+        status: 'atrasado',
+        bannerClass: 'banner-atrasado',
+        title: 'Existem receitas em atraso.',
+        subtitle: `R$ ${brl(atrasado)} estão atrasados neste período.`
+      }
+    }
+    if (pendente > 0) {
+      return {
+        status: 'pendente',
+        bannerClass: 'banner-pendente',
+        title: 'Receitas pendentes no período.',
+        subtitle: `Ainda há R$ ${brl(pendente)} para receber.`
+      }
+    }
+    return {
+      status: 'recebido',
+      bannerClass: 'banner-recebido',
+      title: 'Receita totalmente recebida.',
+      subtitle: 'Nenhuma pendência neste período.'
+    }
+  }, [totalPeriodo, pendente, atrasado])
+
   // --- Table Filters (Based on Drawer) ---
   const filteredIncomes = useMemo(() => {
     return allIncomes.filter(inc => {
@@ -320,30 +362,122 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       <div className="fd-grid" style={{ rowGap: 16 }}>
         {/* ROW 1: Resumo, Realização, Saúde */}
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
-              Receitas do Período
-              <CardInfoTooltip content="Soma de todas as receitas previstas ou recebidas no mês selecionado." />
-            </div>
-            <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 28, fontWeight: 800, color: 'var(--ink)', marginBottom: 16 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, marginRight: 2 }}>R$</span>{brl(totalPeriodo)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--faint)' }}><CheckCircle2 size={12} color="var(--green)" /> Recebido</span>
-                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ color: 'var(--green)' }}>R$ {brl(recebido)}</span>
+          <div className="premium-periodo-card">
+            <div className="premium-periodo-header">
+              <div className="premium-periodo-title-container">
+                <div className="premium-periodo-icon-wrapper">
+                  <Wallet size={16} />
+                </div>
+                <div className="premium-periodo-divider" />
+                <span className="premium-periodo-title">RECEITAS DO PERÍODO</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--faint)' }}><TrendingUp size={12} color="var(--orange)" /> Pendente</span>
-                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ color: 'var(--orange-ink)' }}>R$ {brl(pendente)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--faint)' }}><AlertCircle size={12} color="var(--neg)" /> Atrasado</span>
-                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ color: 'var(--neg)' }}>R$ {brl(atrasado)}</span>
+              <div className="premium-periodo-info">
+                <CardInfoTooltip content="Mostra o total de receitas previstas no período, separando o que já foi recebido, pendente e atrasado." />
               </div>
             </div>
-            <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(1, 88, 76, 0.04)', fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
-              {atrasado === 0 ? '✓ Nenhuma receita atrasada.' : '⚠ Existem pendências em atraso.'}
+
+            <div className="premium-periodo-meta-container">
+              <span className="premium-periodo-subtitle">Total previsto no período</span>
+              <div className="premium-periodo-value-container">
+                <span className="premium-periodo-currency">R$</span>
+                <span className={`premium-periodo-value tabnums${hidden ? ' priv' : ''}`}>
+                  {brl(totalPeriodo)}
+                </span>
+              </div>
+            </div>
+
+            <div className="premium-periodo-progress-wrapper">
+              {propRecebido > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)' }} 
+                />
+              )}
+              {propPendente > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)' }} 
+                />
+              )}
+              {propAtrasado > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)' }} 
+                />
+              )}
+            </div>
+
+            <div className="premium-periodo-grid">
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-recebido">
+                    <CheckCircle2 size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Recebido</span>
+                </div>
+                <span className={`premium-periodo-item-value val-recebido tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(recebido)}
+                </span>
+                <span className="premium-periodo-item-pill pill-recebido">
+                  {pctRecebido}% do total
+                </span>
+              </div>
+
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-pendente">
+                    <TrendingUp size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Pendente</span>
+                </div>
+                <span className={`premium-periodo-item-value val-pendente tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(pendente)}
+                </span>
+                <span className="premium-periodo-item-pill pill-pendente">
+                  {pctPendente}% do total
+                </span>
+              </div>
+
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-atrasado">
+                    <AlertCircle size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Atrasado</span>
+                </div>
+                <span className={`premium-periodo-item-value val-atrasado tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(atrasado)}
+                </span>
+                <span className="premium-periodo-item-pill pill-atrasado">
+                  {pctAtrasado}% do total
+                </span>
+              </div>
+            </div>
+
+            <div className={`premium-periodo-banner ${periodoState.bannerClass}`}>
+              <div className="premium-periodo-banner-icon">
+                {periodoState.status === 'recebido' ? (
+                  <CheckCircle2 size={14} />
+                ) : periodoState.status === 'atrasado' ? (
+                  <AlertCircle size={14} />
+                ) : (
+                  <TrendingUp size={14} />
+                )}
+              </div>
+              <div className="premium-periodo-banner-content">
+                <span className="premium-periodo-banner-title">{periodoState.title}</span>
+                <span className="premium-periodo-banner-subtitle">{periodoState.subtitle}</span>
+              </div>
+              <div className="premium-periodo-banner-illustration">
+                <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
+                  <path d="M2 22L12 17L22 19L32 10L42 12L58 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="17" r="2" fill="currentColor" />
+                  <circle cx="22" cy="19" r="2" fill="currentColor" />
+                  <circle cx="32" cy="10" r="2" fill="currentColor" />
+                  <circle cx="42" cy="12" r="2" fill="currentColor" />
+                  <circle cx="58" cy="2" r="2" fill="currentColor" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>

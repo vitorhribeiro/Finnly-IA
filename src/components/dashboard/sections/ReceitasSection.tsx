@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
   ArrowDown, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy,
-  HeartPulse, ShieldCheck
+  HeartPulse, ShieldCheck, DollarSign, Wallet
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
@@ -158,6 +158,79 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
   const strokeColor = getStatusColor(saudeMetrics.status)
 
+  // --- Realização do Mês Calculations ---
+  const hasForecast = totalPeriodo > 0
+  const pctRealizacaoRaw = hasForecast ? (recebido / totalPeriodo) * 100 : 0
+  const pctRealizacaoDisplay = Math.round(pctRealizacaoRaw)
+  const pctBar = Math.min(100, Math.max(0, pctRealizacaoRaw))
+  const faltante = Math.max(0, totalPeriodo - recebido)
+
+  const realizacaoState = useMemo(() => {
+    if (!hasForecast) {
+      return {
+        status: 'empty',
+        badgeClass: 'status-empty',
+        badgeText: 'Sem dados',
+        text: 'Ainda não há receita prevista suficiente para calcular a realização deste mês.',
+        bannerClass: 'banner-empty',
+        bannerTitle: 'Aguardando lançamentos.',
+        bannerSubtitle: 'Cadastre receitas para acompanhar o progresso mensal.',
+        color: 'var(--muted)'
+      }
+    }
+
+    if (recebido <= 0) {
+      return {
+        status: 'not_started',
+        badgeClass: 'status-not-started',
+        badgeText: 'Não iniciado',
+        text: 'Nenhuma receita prevista foi recebida até agora neste mês.',
+        bannerClass: 'banner-not-started',
+        bannerTitle: 'Recebimento ainda não iniciado.',
+        bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+        color: 'var(--faint)'
+      }
+    }
+
+    if (pctRealizacaoDisplay >= 100) {
+      const isOver = pctRealizacaoDisplay > 100
+      return {
+        status: 'completed',
+        badgeClass: 'status-completed',
+        badgeText: isOver ? 'Acima do previsto' : 'Concluído',
+        text: isOver ? 'Receita realizada acima do previsto.' : 'Você já recebeu toda a receita prevista para este mês.',
+        bannerClass: 'banner-completed',
+        bannerTitle: isOver ? 'Meta superada!' : 'Receita totalmente recebida neste mês.',
+        bannerSubtitle: 'Excelente! Sua gestão financeira está no caminho certo.',
+        color: 'var(--green)'
+      }
+    }
+
+    if (pctRealizacaoDisplay < 50) {
+      return {
+        status: 'below_expectations',
+        badgeClass: 'status-below',
+        badgeText: 'Abaixo do esperado',
+        text: 'A realização da receita ainda está abaixo do esperado neste mês.',
+        bannerClass: 'banner-below',
+        bannerTitle: 'Lançamentos abaixo da meta.',
+        bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+        color: 'var(--orange-ink)'
+      }
+    }
+
+    return {
+      status: 'in_progress',
+      badgeClass: 'status-in-progress',
+      badgeText: 'Em andamento',
+      text: 'Boa parte da receita prevista já foi recebida neste mês.',
+      bannerClass: 'banner-in-progress',
+      bannerTitle: 'Receitas em andamento.',
+      bannerSubtitle: `Faltam R$ ${brl(faltante)} para atingir a receita prevista.`,
+      color: 'var(--gold)'
+    }
+  }, [hasForecast, recebido, pctRealizacaoDisplay, faltante])
+
   // --- Table Filters (Based on Drawer) ---
   const filteredIncomes = useMemo(() => {
     return allIncomes.filter(inc => {
@@ -276,31 +349,90 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         </div>
 
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
-              Realização do Mês
-              <CardInfoTooltip content="Mostra quanto da sua receita prevista já foi realmente recebida." />
+          <div className="premium-realizacao-card">
+            <div className="premium-realizacao-header">
+              <div className="premium-realizacao-title-container">
+                <div className="premium-realizacao-icon-wrapper">
+                  <Percent size={16} />
+                </div>
+                <div className="premium-realizacao-divider" />
+                <span className="premium-realizacao-title">REALIZAÇÃO DO MÊS</span>
+              </div>
+              <div className="premium-realizacao-info">
+                <CardInfoTooltip content="Mostra quanto da receita prevista para o mês já foi efetivamente recebida." />
+              </div>
             </div>
-            {totalPeriodo > 0 ? (
-              <>
-                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 28, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>
-                  {Math.round((recebido / totalPeriodo) * 100)}<span style={{ fontSize: 16 }}>%</span>
+
+            <div className="premium-realizacao-body">
+              <div className="premium-realizacao-score-row">
+                <span className={`premium-realizacao-percentage tabnums${hidden ? ' priv' : ''}`}>
+                  {pctRealizacaoDisplay}%
+                </span>
+                <span className={`premium-realizacao-badge ${realizacaoState.badgeClass}`}>
+                  {realizacaoState.status === 'completed' && <CheckCircle2 size={12} />}
+                  {realizacaoState.badgeText}
+                </span>
+              </div>
+
+              <div className="premium-realizacao-progress-wrapper">
+                <div 
+                  className="premium-realizacao-progress-fill" 
+                  style={{ 
+                    width: `${pctBar}%`, 
+                    backgroundColor: realizacaoState.color 
+                  }} 
+                />
+                {pctBar >= 100 && (
+                  <div className="premium-realizacao-progress-check">
+                    <CheckCircle2 size={10} color="white" />
+                  </div>
+                )}
+              </div>
+
+              <p className="premium-realizacao-desc">
+                {realizacaoState.text}
+              </p>
+            </div>
+
+            <div className="premium-realizacao-stats-grid">
+              <div className="premium-realizacao-stat-item">
+                <div className="premium-realizacao-stat-icon-wrapper">
+                  <Wallet size={12} />
                 </div>
-                <div style={{ width: '100%', height: 6, background: 'var(--surface-2)', borderRadius: 3, marginBottom: 12, overflow: 'hidden' }}>
-                  <div style={{ width: `${(recebido / totalPeriodo) * 100}%`, height: '100%', background: 'var(--green)', borderRadius: 3 }} />
+                <div className="premium-realizacao-stat-content">
+                  <span className="premium-realizacao-stat-label">Previsto</span>
+                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
+                    R$ {brl(totalPeriodo)}
+                  </span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
-                  {pendente === 0 
-                    ? "Você já recebeu toda a receita prevista para este mês." 
-                    : `Faltam R$ ${brl(pendente)} para atingir a projeção mensal.`}
-                </p>
-                <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px solid rgba(1, 88, 76, 0.04)', fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
-                  {pendente === 0 ? '✓ Receita totalmente recebida neste mês.' : 'Acompanhe as próximas liquidações.'}
+              </div>
+
+              <div className="premium-realizacao-stat-item">
+                <div className="premium-realizacao-stat-icon-wrapper">
+                  <DollarSign size={12} />
                 </div>
-              </>
-            ) : (
-              <p className="empty-msg" style={{ padding: '20px 0', fontSize: 12 }}>Nenhuma receita lançada.</p>
-            )}
+                <div className="premium-realizacao-stat-content">
+                  <span className="premium-realizacao-stat-label">Recebido</span>
+                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
+                    R$ {brl(recebido)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`premium-realizacao-banner ${realizacaoState.bannerClass}`}>
+              <div className="premium-realizacao-banner-icon">
+                {realizacaoState.status === 'completed' ? (
+                  <CheckCircle2 size={14} />
+                ) : (
+                  <TrendingUp size={14} />
+                )}
+              </div>
+              <div className="premium-realizacao-banner-content">
+                <span className="premium-realizacao-banner-title">{realizacaoState.bannerTitle}</span>
+                <span className="premium-realizacao-banner-subtitle">{realizacaoState.bannerSubtitle}</span>
+              </div>
+            </div>
           </div>
         </div>
 

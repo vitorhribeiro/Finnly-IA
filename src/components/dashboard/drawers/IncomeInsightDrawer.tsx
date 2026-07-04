@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Wallet, Percent, HeartPulse, CheckCircle2, ShieldCheck, Pencil, ArrowRight, Sparkles, TrendingUp, AlertCircle, Info, CalendarClock } from 'lucide-react'
+import { X, Wallet, Percent, HeartPulse, CheckCircle2, ShieldCheck, Pencil, ArrowRight, Sparkles, TrendingUp, AlertCircle, Info, CalendarClock, AlertTriangle, Users } from 'lucide-react'
+import { calculateIncomeHealthScore } from '@/utils/financialHealth'
 
 type IncomeInsightDrawerProps = {
   isOpen: boolean
@@ -661,109 +662,446 @@ export function IncomeInsightDrawer({ isOpen, onClose, type, data, onEdit, onTog
 
   const renderHealthDetails = () => {
     if (!data.health) return null
-    const { saudeMetrics, hidden } = data.health
+    const { saudeMetrics, hidden, currentIncomes, selectedMonth, allIncomes, categories } = data.health
 
-    const HEALTH_SCORE_RADIUS = 50
+    const HEALTH_SCORE_RADIUS = 40
     const circumference = 2 * Math.PI * HEALTH_SCORE_RADIUS
-    const angle = saudeMetrics.score * 3.6
-    const angleRad = (angle * Math.PI) / 180
-    const dotX = 60 + HEALTH_SCORE_RADIUS * Math.cos(angleRad)
-    const dotY = 60 + HEALTH_SCORE_RADIUS * Math.sin(angleRad)
     const strokeColor = getStatusColor(saudeMetrics.status)
 
+    // Calculate penalties exactly as defined in helper
+    const totalExpected = saudeMetrics.metrics.totalExpected
+    const fixedRatio = saudeMetrics.metrics.fixedRatio
+    const topSourceRatio = saudeMetrics.metrics.topSourceRatio
+    const sourceCount = saudeMetrics.metrics.sourceCount
+    const overdueTotal = saudeMetrics.metrics.overdueTotal
+
+    // 1. Delays
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const overdueCount = currentIncomes ? currentIncomes.filter((i: any) => !i.payment_status && i.date < todayStr).length : 0
+    let delaysPenalty = 0
+    if (overdueTotal > 0 && totalExpected > 0) {
+      const overdueRatio = overdueTotal / totalExpected
+      if (overdueRatio > 0.25) {
+        delaysPenalty += 28
+      } else if (overdueRatio > 0.1) {
+        delaysPenalty += 16
+      } else {
+        delaysPenalty += 8
+      }
+      if (overdueCount >= 3) {
+        delaysPenalty += 5
+      }
+    }
+
+    // 2. Predictability
+    let predictabilityPenalty = 0
+    if (totalExpected > 0) {
+      if (fixedRatio >= 0.60) {
+        // 0
+      } else if (fixedRatio >= 0.35) {
+        predictabilityPenalty = 8
+      } else {
+        predictabilityPenalty = 18
+      }
+    }
+
+    // 3. Diversification / Concentration
+    let concentrationPenalty = 0
+    if (totalExpected > 0) {
+      if (topSourceRatio < 0.50) {
+        // 0
+      } else if (topSourceRatio >= 0.50 && topSourceRatio < 0.70) {
+        concentrationPenalty += 10
+      } else {
+        concentrationPenalty += 18
+      }
+      if (sourceCount <= 1) {
+        concentrationPenalty += 12
+      }
+    }
+
+    // 4. Historical Trend
+    const getPreviousMonthYM = (ym: string, offset: number) => {
+      const [y, m] = ym.split('-').map(Number)
+      const d = new Date(y, m - 1 - offset, 1)
+      return d.toISOString().slice(0, 7)
+    }
+    const prevMonthYM = getPreviousMonthYM(selectedMonth, 1)
+    const prevIncomes = allIncomes ? allIncomes.filter((i: any) => i.date.slice(0, 7) === prevMonthYM) : []
+    const prevTotalExpected = prevIncomes.reduce((sum: number, i: any) => sum + Number(i.amount), 0)
+    
+    let historicalPenalty = 0
+    if (prevTotalExpected > 0 && totalExpected > 0) {
+      const media3Meses = prevTotalExpected // Using previous month as simple media for simplicity and alignment
+      const quedaPercentual = (media3Meses - totalExpected) / media3Meses
+      if (quedaPercentual > 0.50) {
+        historicalPenalty = 18
+      } else if (quedaPercentual > 0.30) {
+        historicalPenalty = 10
+      }
+    }
+
+    // Month Label Formatter
+    const getMonthLabel = (ym: string) => {
+      const [y, m] = ym.split('-').map(Number)
+      const dateObj = new Date(y, m - 1, 1)
+      const mName = dateObj.toLocaleDateString('pt-BR', { month: 'long' })
+      return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${y}`
+    }
+
+    // Badge styling and texts mapping
+    const getBadgeDetails = (status: string) => {
+      if (status === 'healthy') {
+        return { text: 'SAUDÁVEL', bg: 'rgba(40,167,69,0.08)', color: 'var(--green)', icon: <CheckCircle2 size={12} /> }
+      }
+      if (status === 'light_attention') {
+        return { text: 'ESTÁVEL', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} />, secondary: 'Atenção Leve' }
+      }
+      if (status === 'attention') {
+        return { text: 'ATENÇÃO', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} />, secondary: 'Atenção Moderada' }
+      }
+      if (status === 'critical') {
+        return { text: 'CRÍTICO', bg: 'rgba(239,68,68,0.08)', color: 'var(--neg)', icon: <AlertTriangle size={12} /> }
+      }
+      return { text: 'SEM DADOS', bg: 'var(--surface-2)', color: 'var(--muted)', icon: <Info size={12} /> }
+    }
+    const badge = getBadgeDetails(saudeMetrics.status)
+
+    // Dynamic Pontos de Atenção and Como Melhorar (Max 3 items)
+    const pontosDeAtencao: string[] = []
+    const comoMelhorar: string[] = []
+
+    if (totalExpected <= 0) {
+      pontosDeAtencao.push('Nenhuma receita cadastrada neste mês para analisar.')
+      comoMelhorar.push('Comece cadastrando suas previsões de receitas para iniciar o acompanhamento.')
+    } else {
+      // 1. Predictability
+      if (fixedRatio < 0.35) {
+        pontosDeAtencao.push('Previsibilidade baixa: grande dependência de receitas variáveis.')
+        comoMelhorar.push('Busque contratos de recorrência ou parcerias fixas de longo prazo.')
+      } else if (fixedRatio < 0.60) {
+        pontosDeAtencao.push('Previsibilidade média: mescla equilibrada, mas com volatilidade.')
+        comoMelhorar.push('Tente converter parte dos faturamentos variáveis em fixos.')
+      }
+
+      // 2. Concentration
+      if (topSourceRatio >= 0.70) {
+        pontosDeAtencao.push('Dependência crítica: uma única fonte representa quase toda a receita.')
+        comoMelhorar.push('Diversifique sua carteira de clientes ou canais de captação.')
+      } else if (topSourceRatio >= 0.50) {
+        pontosDeAtencao.push('Concentração moderada: principal fonte representa mais de 50% das entradas.')
+        comoMelhorar.push('Desenvolva fontes secundárias de receita para mitigar riscos.')
+      }
+
+      // 3. Delays
+      if (overdueTotal > 0) {
+        pontosDeAtencao.push(`Há valores em atraso que somam R$ ${brl(overdueTotal)} (${Math.round((overdueTotal/totalExpected)*100)}% do planejado).`)
+        comoMelhorar.push('Adote lembretes automáticos de cobrança e notifique clientes em atraso.')
+      }
+
+      // Fill in generic positive items if list is short to keep visual balance
+      if (pontosDeAtencao.length === 0) {
+        pontosDeAtencao.push('Excelente pontualidade das receitas e pagamentos em dia.')
+      }
+      if (comoMelhorar.length === 0) {
+        comoMelhorar.push('Continue registrando e conciliando suas receitas regularmente.')
+      }
+    }
+
+    // Limit to max 3 items
+    const finalPontos = pontosDeAtencao.slice(0, 3)
+    const finalMelhorias = comoMelhorar.slice(0, 3)
+
     return (
-      <div className="drawer-content-section fade-up">
-        <div className="insight-drawer-header">
-          <div className="insight-drawer-icon" style={{ background: 'var(--ink)', color: 'white' }}>
-            <HeartPulse size={24} />
-          </div>
-          <div>
-            <h3 className="insight-drawer-title">Saúde da Receita</h3>
-            <p className="insight-drawer-sub">Análise avançada de qualidade e previsibilidade</p>
+      <div className="drawer-content-section fade-up" style={{ padding: 0 }}>
+        {/* Header */}
+        <div style={{ padding: '32px 32px 16px 32px' }}>
+          <div className="insight-drawer-header">
+            <div className="insight-drawer-icon" style={{ background: 'rgba(1, 88, 76, 0.08)', color: 'var(--teal)' }}>
+              <HeartPulse size={24} />
+            </div>
+            <div>
+              <h3 className="insight-drawer-title" style={{ fontSize: 20, fontWeight: 800 }}>Saúde da Receita</h3>
+              <p className="insight-drawer-sub" style={{ fontSize: 13, color: 'var(--muted)' }}>Diagnóstico da estabilidade das suas entradas</p>
+            </div>
           </div>
         </div>
 
-        <div className="card" style={{ padding: 24, marginTop: 24, display: 'flex', flexDirection: 'column', gap: 32, alignItems: 'center' }}>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <div className="premium-health-score-container" style={{ width: 120, height: 120, position: 'relative' }}>
-              <svg viewBox="0 0 120 120" className="premium-health-score-svg" style={{ width: 120, height: 120 }}>
-                <circle cx="60" cy="60" r={HEALTH_SCORE_RADIUS} className="premium-health-score-bg-circle" />
+        {/* Scrollable Content Container */}
+        <div style={{ padding: '0 32px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Hero Card Split Layout */}
+          <div className="card" style={{ padding: 24, display: 'flex', gap: 24, alignItems: 'center', background: '#FCFAF7', border: '1px solid rgba(13, 61, 55, 0.08)', borderRadius: 16 }}>
+            {/* Left circular gauge */}
+            <div style={{ width: 96, height: 96, position: 'relative', flexShrink: 0 }}>
+              <svg viewBox="0 0 96 96" style={{ width: 96, height: 96, transform: 'rotate(-90deg)' }}>
+                <circle cx="48" cy="48" r="40" fill="none" stroke="var(--surface-2)" strokeWidth="6.5" />
                 <circle 
-                  cx="60" 
-                  cy="60" 
-                  r={HEALTH_SCORE_RADIUS} 
-                  className="premium-health-score-fill-circle" 
-                  style={{ 
-                    stroke: strokeColor,
-                    strokeDasharray: `${circumference}`, 
-                    strokeDashoffset: `${circumference * (1 - saudeMetrics.score / 100)}`,
-                    strokeWidth: 8
-                  }} 
+                  cx="48" cy="48" r="40" fill="none" 
+                  stroke={strokeColor} strokeWidth="6.5" 
+                  strokeDasharray="251.32"
+                  strokeDashoffset={`${251.32 * (1 - saudeMetrics.score / 100)}`}
+                  strokeLinecap="round"
                 />
-                {saudeMetrics.score > 0 && (
-                  <circle cx={dotX} cy={dotY} r="5" fill="#FCFAF7" stroke={strokeColor} strokeWidth="2.5" />
-                )}
               </svg>
-              <div className="premium-health-score-value-wrapper" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span className={`premium-health-score-value tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 36, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{saudeMetrics.score}</span>
-                <span className="premium-health-score-total" style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>/100</span>
+              <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
+                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 26, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
+                <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginTop: 1 }}>/100</span>
               </div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <span className={`premium-health-badge ${getBadgeClass(saudeMetrics.status)}`} style={{ fontSize: 13, padding: '4px 10px', marginBottom: 8, display: 'inline-flex' }}>
-                <ShieldCheck size={14} style={{ marginRight: 6 }} />
-                {saudeMetrics.label}
-              </span>
-              <p className="premium-health-desc" style={{ fontSize: 14, maxWidth: 280, margin: '0 auto', color: 'var(--muted)', lineHeight: 1.4 }}>
+            {/* Right details */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span 
+                  style={{ 
+                    fontSize: 9.5, 
+                    padding: '4px 8px', 
+                    borderRadius: 8, 
+                    fontWeight: 800, 
+                    background: badge.bg, 
+                    color: badge.color,
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: 4, 
+                    letterSpacing: '0.05em'
+                  }}
+                >
+                  {badge.icon}
+                  {badge.text}
+                </span>
+                {badge.secondary && (
+                  <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+                    ({badge.secondary})
+                  </span>
+                )}
+              </div>
+
+              <p style={{ fontSize: 13.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
                 {saudeMetrics.description}
               </p>
+
+              <span style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 500 }}>
+                A nota considera previsibilidade, concentração e atrasos.
+              </span>
             </div>
           </div>
 
-          <div style={{ width: '100%', height: 1, background: 'var(--line-soft)' }} />
+          {/* Seção Como a nota foi formada */}
+          <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, borderRadius: 16 }}>
+            <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', margin: 0 }}>
+              Como a nota foi formada
+            </h4>
 
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h4 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5 }}>Microindicadores</h4>
-            
-            <div className="health-indicator-list" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="health-indicator-item" style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface-2)', padding: 12, borderRadius: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 4, background: saudeMetrics.indicators.delays.level === 'good' ? 'var(--green)' : saudeMetrics.indicators.delays.level === 'medium' ? 'var(--orange)' : 'var(--neg)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Atrasos</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {saudeMetrics.indicators.delays.level === 'good' ? 'Poucos ou nenhum atraso.' : 
-                     saudeMetrics.indicators.delays.level === 'medium' ? 'Atrasos moderados.' : 'Alto índice de atrasos.'}
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Previsibilidade Penalty */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: 'var(--ink)' }}>Previsibilidade</span>
+                  <span style={{ color: predictabilityPenalty > 0 ? 'var(--orange-ink)' : 'var(--green)' }}>
+                    {predictabilityPenalty > 0 ? `-${predictabilityPenalty} pts` : '0 pts'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${(predictabilityPenalty / 18) * 100}%`, height: '100%', background: predictabilityPenalty > 0 ? 'var(--orange)' : 'var(--green)' }} />
                 </div>
               </div>
 
-              <div className="health-indicator-item" style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface-2)', padding: 12, borderRadius: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 4, background: saudeMetrics.indicators.predictability.level === 'good' ? 'var(--green)' : saudeMetrics.indicators.predictability.level === 'medium' ? 'var(--orange)' : 'var(--neg)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Previsibilidade</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {saudeMetrics.indicators.predictability.level === 'good' ? 'Alta proporção de receita fixa.' : 
-                     saudeMetrics.indicators.predictability.level === 'medium' ? 'Previsibilidade moderada.' : 'Baixa proporção de receita fixa.'}
-                  </div>
+              {/* Concentração Penalty */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: 'var(--ink)' }}>Concentração</span>
+                  <span style={{ color: concentrationPenalty > 0 ? 'var(--orange-ink)' : 'var(--green)' }}>
+                    {concentrationPenalty > 0 ? `-${concentrationPenalty} pts` : '0 pts'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${(concentrationPenalty / 30) * 100}%`, height: '100%', background: concentrationPenalty > 0 ? 'var(--orange)' : 'var(--green)' }} />
                 </div>
               </div>
 
-              <div className="health-indicator-item" style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface-2)', padding: 12, borderRadius: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 4, background: saudeMetrics.indicators.diversification.level === 'good' ? 'var(--green)' : saudeMetrics.indicators.diversification.level === 'medium' ? 'var(--orange)' : 'var(--neg)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Diversificação</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {saudeMetrics.indicators.diversification.level === 'good' ? 'Receita bem distribuída.' : 
-                     saudeMetrics.indicators.diversification.level === 'medium' ? 'Concentração moderada.' : 'Alta dependência de poucas fontes.'}
-                  </div>
+              {/* Atrasos Penalty */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: 'var(--ink)' }}>Atrasos</span>
+                  <span style={{ color: delaysPenalty > 0 ? 'var(--neg)' : 'var(--green)' }}>
+                    {delaysPenalty > 0 ? `-${delaysPenalty} pts` : '0 pts'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${(delaysPenalty / 33) * 100}%`, height: '100%', background: delaysPenalty > 0 ? 'var(--neg)' : 'var(--green)' }} />
                 </div>
               </div>
 
+              {/* Historical trend Penalty if exists */}
+              {historicalPenalty > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600 }}>
+                    <span style={{ color: 'var(--ink)' }}>Histórico de Queda</span>
+                    <span style={{ color: 'var(--neg)' }}>-{historicalPenalty} pts</span>
+                  </div>
+                  <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${(historicalPenalty / 18) * 100}%`, height: '100%', background: 'var(--neg)' }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Bento Grid Microindicadores */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+            {/* Card 1: Previsibilidade */}
+            <div className="card" style={{ padding: 18, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Previsibilidade</span>
+                <span style={{ 
+                  fontSize: 10, 
+                  fontWeight: 800, 
+                  color: saudeMetrics.indicators.predictability.level === 'good' ? 'var(--green)' : saudeMetrics.indicators.predictability.level === 'medium' ? 'var(--orange-ink)' : 'var(--neg)',
+                  textTransform: 'uppercase'
+                }}>
+                  {saudeMetrics.indicators.predictability.level === 'good' ? 'Boa' : saudeMetrics.indicators.predictability.level === 'medium' ? 'Média' : 'Baixa'}
+                </span>
+              </div>
+              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: 'var(--teal-900)' }}>
+                {Math.round(fixedRatio * 100)}% <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>de receita fixa</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, lineHeight: 1.4 }}>
+                {saudeMetrics.indicators.predictability.description}
+              </p>
+            </div>
+
+            {/* Split row for client concentration and delays */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              {/* Card 2: Concentração */}
+              <div className="card" style={{ padding: 18, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Concentração</span>
+                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 18, fontWeight: 800, color: 'var(--teal-900)', lineHeight: 1.2 }}>
+                  {Math.round(topSourceRatio * 100)}%
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
+                  Na principal fonte ({sourceCount} ativa{sourceCount !== 1 ? 's' : ''})
+                </div>
+                <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.35 }}>
+                  {saudeMetrics.indicators.diversification.description}
+                </p>
+              </div>
+
+              {/* Card 3: Atrasos */}
+              <div className="card" style={{ padding: 18, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atrasos</span>
+                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 18, fontWeight: 800, color: overdueTotal > 0 ? 'var(--neg)' : 'var(--green)', lineHeight: 1.2 }}>
+                  {overdueTotal > 0 ? `R$ ${brl(overdueTotal)}` : 'Sem atrasos'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
+                  {overdueCount} faturamento{overdueCount !== 1 ? 's' : ''} vencido{overdueCount !== 1 ? 's' : ''}
+                </div>
+                <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.35 }}>
+                  {saudeMetrics.indicators.delays.description}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Evolução da Saúde (Only shown if historical month had expected data) */}
+          {prevTotalExpected > 0 && (
+            <div className="card" style={{ padding: 18, borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Evolução da Saúde</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {(() => {
+                  const prevSaude = calculateIncomeHealthScore(allIncomes, prevMonthYM, allIncomes)
+                  const scoreDiff = saudeMetrics.score - prevSaude.score
+                  
+                  let diffColor = 'var(--muted)'
+                  let diffText = 'Sem alteração'
+                  if (scoreDiff > 0) {
+                    diffColor = 'var(--green)'
+                    diffText = `+${scoreDiff} pts`
+                  } else if (scoreDiff < 0) {
+                    diffColor = 'var(--neg)'
+                    diffText = `${scoreDiff} pts`
+                  }
+
+                  return (
+                    <>
+                      <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: diffColor }}>
+                        {diffText}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
+                        comparado a {getMonthLabel(prevMonthYM)} (nota anterior: {prevSaude.score})
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Pontos de atenção & Como melhorar */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+            {/* Pontos de atenção */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 4px 0' }}>
+                Pontos de atenção
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--ink)', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {finalPontos.map((item, idx) => (
+                  <li key={idx} style={{ color: 'var(--ink)' }}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Como melhorar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 4px 0' }}>
+                Como melhorar
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--ink)', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {finalMelhorias.map((item, idx) => (
+                  <li key={idx} style={{ color: 'var(--ink)' }}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Pinned Fixed Footer */}
+        <div className="drawer-fixed-footer" style={{ position: 'sticky', bottom: 0, zIndex: 100, paddingBottom: 48, background: 'var(--bg)' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', width: '100%' }}>
+            {onViewAll && (
+              <button 
+                onClick={onViewAll}
+                className="ai-chip-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--line-strong)', background: 'transparent', color: 'var(--ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <ArrowRight size={14} /> Ver receitas
+              </button>
+            )}
+            {onAdd && (
+              <button 
+                onClick={() => {
+                  onAdd()
+                }}
+                className="ai-chip-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 12, border: 'none', background: 'var(--teal)', color: 'white', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <Wallet size={14} /> Criar receita fixa
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                if (onAsk) {
+                  onAsk("Analise a saúde da minha receita e me diga como posso aumentar previsibilidade, reduzir concentração e evitar atrasos.")
+                  onClose()
+                } else {
+                  alert("Análise com IA em breve.")
+                }
+              }}
+              className="ai-chip-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--orange)', background: 'transparent', color: 'var(--orange-ink)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <Sparkles size={14} /> Analisar com IA
+            </button>
+          </div>
         </div>
       </div>
     )

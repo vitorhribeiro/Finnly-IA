@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
-  Plus, X, Pencil, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
-  ArrowDown, ArrowRight, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
-  HeartPulse, ShieldCheck, DollarSign, Wallet
+  Plus, X, Pencil, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
+  ArrowDown, Search, Filter, CalendarClock, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
+  HeartPulse, Wallet
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
 import { calculateIncomeHealthScore } from '@/utils/financialHealth'
-import { addIncome, updateIncome, deleteIncome, getAllIncomes } from '@/app/dashboard/actions/incomes'
+import { updateIncome, deleteIncome, getAllIncomes } from '@/app/dashboard/actions/incomes'
 import { getIncomeCategories } from '@/app/dashboard/actions/income-categories'
 import { getAccounts } from '@/app/dashboard/actions/accounts'
 import type { Income, IncomeCategory, Account } from '@/types/database'
@@ -74,11 +74,13 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [])
 
   // Reset page when filters or selection changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1)
   }, [selectedMonth, searchQuery, filterState])
 
@@ -1264,7 +1266,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         data={{
           period: { totalPeriodo, recebido, pendente, atrasado, propRecebido, propPendente, propAtrasado, periodoState, hidden, currentIncomes, categories },
           realization: { pctRealizacaoDisplayStr, realizacaoState, pctBar, recebido, totalPeriodo, faltante, hidden, currentIncomes, categories, atrasado, pendente, selectedMonth },
-          health: { saudeMetrics, hidden }
+          health: { saudeMetrics, hidden, currentIncomes, selectedMonth, allIncomes, categories }
         }}
         onEdit={(inc) => { setEditIncome(inc); setInsightDrawerOpen(false); }}
         onToggle={handleToggleStatus}
@@ -1276,6 +1278,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           } else {
             window.scrollTo({ top: 400, behavior: 'smooth' })
           }
+        }}
+        onAdd={() => {
+          setEditIncome({ income_type: 'fixed', is_recurring: true } as unknown as Income)
+          setShowIncomeModal(true)
+          setInsightDrawerOpen(false)
         }}
       />
     </div>

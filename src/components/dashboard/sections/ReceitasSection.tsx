@@ -155,40 +155,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return calculateIncomeHealthScore(allIncomes, selectedMonth, allIncomes)
   }, [allIncomes, selectedMonth])
 
-  const HEALTH_SCORE_RADIUS = 38
-  const circumference = 2 * Math.PI * HEALTH_SCORE_RADIUS
-  // The SVG itself is rotated -90deg in CSS, so the coordinates must be calculated natively (0% at 3 o'clock)
-  const angle = saudeMetrics.score * 3.6
-  const angleRad = (angle * Math.PI) / 180
-  const dotX = 50 + HEALTH_SCORE_RADIUS * Math.cos(angleRad)
-  const dotY = 50 + HEALTH_SCORE_RADIUS * Math.sin(angleRad)
-
   const getStatusColor = (status: string) => {
     if (status === 'healthy') return 'var(--teal)'
     if (status === 'light_attention') return 'var(--gold)'
     if (status === 'attention') return 'var(--orange)'
     if (status === 'critical') return 'var(--neg)'
     return 'rgba(13, 61, 55, 0.15)'
-  }
-
-  const getLevelColor = (level: 'good' | 'medium' | 'bad') => {
-    if (level === 'good') return 'var(--teal)'
-    if (level === 'medium') return 'var(--orange)'
-    return 'var(--neg)'
-  }
-
-  const getLevelBg = (level: 'good' | 'medium' | 'bad') => {
-    if (level === 'good') return 'rgba(1, 88, 76, 0.05)'
-    if (level === 'medium') return 'rgba(245, 124, 0, 0.05)'
-    return 'rgba(239, 68, 68, 0.05)'
-  }
-
-  const getBadgeClass = (status: string) => {
-    if (status === 'healthy') return 'status-saudavel'
-    if (status === 'light_attention') return 'status-atencao-leve'
-    if (status === 'attention') return 'status-atencao'
-    if (status === 'critical') return 'status-critico'
-    return 'status-empty'
   }
 
   const strokeColor = getStatusColor(saudeMetrics.status)
@@ -280,10 +252,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const propRecebido = totalPeriodo > 0 ? (recebido / totalPeriodo) * 100 : 0
   const propPendente = totalPeriodo > 0 ? (pendente / totalPeriodo) * 100 : 0
   const propAtrasado = totalPeriodo > 0 ? (atrasado / totalPeriodo) * 100 : 0
-
-  const pctRecebido = formatSmartPercentage(propRecebido)
-  const pctPendente = formatSmartPercentage(propPendente)
-  const pctAtrasado = formatSmartPercentage(propAtrasado)
 
   const periodoState = useMemo(() => {
     if (totalPeriodo <= 0) {

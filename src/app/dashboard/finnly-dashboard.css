@@ -3537,8 +3537,8 @@ input:focus, select:focus, textarea:focus {
 
 /* ============================================================ PREMIUM REFINEMENTS */
 .period-card {
-  background: #FCFAF7; /* Creme/off-white background */
-  border: 1px solid rgba(13, 61, 55, 0.08);
+  background: var(--surface);
+  border: 1px solid var(--line);
   padding: 24px 24px 22px 24px; /* Mais respiro */
   min-height: 165px;
   max-height: none; /* Removendo max-height estrito para evitar que o footer vaze */

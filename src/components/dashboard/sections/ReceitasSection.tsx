@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
-  ArrowDown, ArrowRight, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy,
+  ArrowDown, ArrowRight, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
   HeartPulse, ShieldCheck, DollarSign, Wallet
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
@@ -711,47 +711,191 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           </div>
 
           {/* Card Compacto: Saúde da Receita */}
-          <div className="compact-insight-card">
+          <div className="compact-insight-card period-card">
+            {/* Header */}
             <div className="compact-card-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <HeartPulse size={14} className="compact-card-icon" style={{ color: 'var(--ink)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 14, background: 'rgba(1, 88, 76, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <HeartPulse size={14} style={{ color: 'var(--teal)' }} />
+                </div>
                 <span className="compact-card-title">SAÚDE DA RECEITA</span>
               </div>
               <CardInfoTooltip content="Qualidade geral e previsibilidade das entradas." />
             </div>
             
-            <div className="compact-card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div className="compact-health-score">
-                <svg viewBox="0 0 60 60" style={{ width: 48, height: 48, transform: 'rotate(-90deg)' }}>
-                  <circle cx="30" cy="30" r="22" fill="none" stroke="var(--surface-2)" strokeWidth="4" />
-                  <circle 
-                    cx="30" cy="30" r="22" fill="none" 
-                    stroke={strokeColor} strokeWidth="4" 
-                    strokeDasharray={`${2 * Math.PI * 22}`}
-                    strokeDashoffset={`${2 * Math.PI * 22 * (1 - saudeMetrics.score / 100)}`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className={`compact-health-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
-              </div>
-              
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span className={`compact-status-badge ${getBadgeClass(saudeMetrics.status)}`} style={{ marginBottom: 4, display: 'inline-flex' }}>
-                  {saudeMetrics.label}
-                </span>
-                <div className="compact-card-subtitle" style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>
-                  {saudeMetrics.indicators.predictability.level === 'good' ? 'Previsibilidade alta' : 'Previsibilidade baixa'} · {saudeMetrics.indicators.diversification.level === 'good' ? 'Diversificada' : 'Concentrada'}
+            {/* Body */}
+            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Top Section: Gauge + Badge/Description */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                {/* Circular Gauge */}
+                <div style={{ width: 80, height: 80, position: 'relative', flexShrink: 0 }}>
+                  <svg viewBox="0 0 80 80" style={{ width: 80, height: 80, transform: 'rotate(-90deg)' }}>
+                    <circle cx="40" cy="40" r="32" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
+                    <circle 
+                      cx="40" cy="40" r="32" fill="none" 
+                      stroke={strokeColor} strokeWidth="5.5" 
+                      strokeDasharray="201.06"
+                      strokeDashoffset={`${2 * Math.PI * 32 * (1 - saudeMetrics.score / 100)}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
+                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 22, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
+                    <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginTop: 1 }}>/100</span>
+                  </div>
+                </div>
+
+                {/* Status Badge + Description */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                  {/* Status Badge */}
+                  {(() => {
+                    const getBadgeDetails = (status: string) => {
+                      if (status === 'healthy') {
+                        return {
+                          text: 'SAUDÁVEL',
+                          bg: 'rgba(40,167,69,0.08)',
+                          color: 'var(--green)',
+                          icon: <CheckCircle2 size={10} />
+                        }
+                      }
+                      if (status === 'light_attention') {
+                        return {
+                          text: 'ATENÇÃO LEVE',
+                          bg: 'rgba(255,179,0,0.08)',
+                          color: '#A06E00',
+                          icon: <AlertTriangle size={10} />
+                        }
+                      }
+                      if (status === 'attention') {
+                        return {
+                          text: 'ATENÇÃO MODERADA',
+                          bg: 'rgba(255,179,0,0.08)',
+                          color: '#A06E00',
+                          icon: <AlertTriangle size={10} />
+                        }
+                      }
+                      if (status === 'critical') {
+                        return {
+                          text: 'CRÍTICO',
+                          bg: 'rgba(239,68,68,0.08)',
+                          color: 'var(--neg)',
+                          icon: <AlertTriangle size={10} />
+                        }
+                      }
+                      return {
+                        text: 'SEM DADOS',
+                        bg: 'var(--surface-2)',
+                        color: 'var(--muted)',
+                        icon: <Info size={10} />
+                      }
+                    }
+                    const badge = getBadgeDetails(saudeMetrics.status)
+                    return (
+                      <span 
+                        style={{ 
+                          fontSize: 9, 
+                          padding: '4px 8px', 
+                          borderRadius: 8, 
+                          fontWeight: 800, 
+                          background: badge.bg, 
+                          color: badge.color,
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 4, 
+                          letterSpacing: '0.05em',
+                          alignSelf: 'flex-start'
+                        }}
+                      >
+                        {badge.icon}
+                        {badge.text}
+                      </span>
+                    )
+                  })()}
+
+                  <p className="compact-card-subtitle" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.4, whiteSpace: 'normal' }}>
+                    {saudeMetrics.description}
+                  </p>
                 </div>
               </div>
+
+              {/* Bottom Section: 3 Indicators */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {/* Previsibilidade */}
+                {(() => {
+                  const level = saudeMetrics.indicators.predictability.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'alta' : isMedium ? 'média' : 'baixa'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {isGood ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Previsibilidade</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Concentração */}
+                {(() => {
+                  const level = saudeMetrics.indicators.diversification.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'baixa' : isMedium ? 'moderada' : 'alta'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Users size={12} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Concentração</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Atrasos */}
+                {(() => {
+                  const level = saudeMetrics.indicators.delays.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'controlados' : isMedium ? 'leves' : 'graves'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <CheckCircle2 size={12} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Atrasos</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
-            
-            <button 
-              className="compact-card-action"
-              onClick={() => { setInsightDrawerType('health'); setInsightDrawerOpen(true); }}
-              aria-label="Ver detalhes de Saúde da Receita"
-            >
-              Ver mais <ChevronRight size={14} />
-            </button>
+
+            {/* Footer */}
+            <div className="compact-insight-footer">
+              <button 
+                className="compact-card-action premium-action"
+                style={{ margin: 0 }}
+                onClick={() => { setInsightDrawerType('health'); setInsightDrawerOpen(true); }}
+                aria-label="Ver detalhes de Saúde da Receita"
+              >
+                Ver mais <div className="action-icon-wrapper"><ChevronRight size={12} /></div>
+              </button>
+            </div>
           </div>
         </div>
       </div>

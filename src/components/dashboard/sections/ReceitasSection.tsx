@@ -364,624 +364,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         </div>
       </div>
 
-      {/* --- PRIMEIRA DOBRA: CARDS ANALÍTICOS DENSOS --- */}
-      <div className="fd-grid" style={{ rowGap: 16 }}>
-        {/* ROW 1: Resumo, Realização, Saúde */}
-        <div className="col-4">
-          <div className="premium-periodo-card">
-            <div className="premium-periodo-header">
-              <div className="premium-periodo-title-container">
-                <div className="premium-periodo-icon-wrapper">
-                  <Wallet size={16} />
-                </div>
-                <div className="premium-periodo-divider" />
-                <span className="premium-periodo-title">RECEITAS DO PERÍODO</span>
-              </div>
-              <div className="premium-periodo-info">
-                <CardInfoTooltip content="Mostra o total de receitas previstas no período, separando o que já foi recebido, pendente e atrasado." />
-              </div>
-            </div>
-
-            <div className="premium-periodo-meta-container">
-              <span className="premium-periodo-subtitle">Total previsto no período</span>
-              <div className="premium-periodo-value-container">
-                <span className="premium-periodo-currency">R$</span>
-                <span className={`premium-periodo-value tabnums${hidden ? ' priv' : ''}`}>
-                  {brl(totalPeriodo)}
-                </span>
-              </div>
-            </div>
-
-            <div className="premium-periodo-progress-wrapper">
-              {propRecebido > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)', minWidth: '4px' }} 
-                />
-              )}
-              {propPendente > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)', minWidth: '4px' }} 
-                />
-              )}
-              {propAtrasado > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)', minWidth: '4px' }} 
-                />
-              )}
-            </div>
-
-            <div className="premium-periodo-grid">
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-recebido">
-                    <CheckCircle2 size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Recebido</span>
-                </div>
-                <span className={`premium-periodo-item-value val-recebido tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(recebido)}
-                </span>
-                <span className="premium-periodo-item-pill pill-recebido">
-                  {pctRecebido}% do total
-                </span>
-              </div>
-
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-pendente">
-                    <TrendingUp size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Pendente</span>
-                </div>
-                <span className={`premium-periodo-item-value val-pendente tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(pendente)}
-                </span>
-                <span className="premium-periodo-item-pill pill-pendente">
-                  {pctPendente}% do total
-                </span>
-              </div>
-
-              <div className="premium-periodo-grid-item">
-                <div className="premium-periodo-item-top">
-                  <div className="premium-periodo-item-icon-wrapper icon-atrasado">
-                    <AlertCircle size={12} />
-                  </div>
-                  <span className="premium-periodo-item-label">Atrasado</span>
-                </div>
-                <span className={`premium-periodo-item-value val-atrasado tabnums${hidden ? ' priv' : ''}`}>
-                  R$ {brl(atrasado)}
-                </span>
-                <span className="premium-periodo-item-pill pill-atrasado">
-                  {pctAtrasado}% do total
-                </span>
-              </div>
-            </div>
-
-            <div className={`premium-periodo-banner ${periodoState.bannerClass}`}>
-              <div className="premium-periodo-banner-icon">
-                {periodoState.status === 'recebido' ? (
-                  <CheckCircle2 size={14} />
-                ) : periodoState.status === 'atrasado' ? (
-                  <AlertCircle size={14} />
-                ) : (
-                  <TrendingUp size={14} />
-                )}
-              </div>
-              <div className="premium-periodo-banner-content">
-                <span className="premium-periodo-banner-title">{periodoState.title}</span>
-              </div>
-              <div className="premium-periodo-banner-illustration">
-                <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
-                  <path d="M2 22L12 17L22 19L32 10L42 12L58 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="17" r="2" fill="currentColor" />
-                  <circle cx="22" cy="19" r="2" fill="currentColor" />
-                  <circle cx="32" cy="10" r="2" fill="currentColor" />
-                  <circle cx="42" cy="12" r="2" fill="currentColor" />
-                  <circle cx="58" cy="2" r="2" fill="currentColor" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-4">
-          <div className="premium-realizacao-card">
-            <div className="premium-realizacao-header">
-              <div className="premium-realizacao-title-container">
-                <div className="premium-realizacao-icon-wrapper">
-                  <Percent size={16} />
-                </div>
-                <div className="premium-realizacao-divider" />
-                <span className="premium-realizacao-title">REALIZAÇÃO DO MÊS</span>
-              </div>
-              <div className="premium-realizacao-info">
-                <CardInfoTooltip content="Compara o valor já recebido com a receita prevista para o mês." />
-              </div>
-            </div>
-
-            <div className="premium-realizacao-body">
-              <div className="premium-realizacao-score-row">
-                <span className={`premium-realizacao-percentage tabnums${hidden ? ' priv' : ''}`}>
-                  {pctRealizacaoDisplayStr}%
-                </span>
-                <span className={`premium-realizacao-badge ${realizacaoState.badgeClass}`}>
-                  {realizacaoState.status === 'completed' && <CheckCircle2 size={12} />}
-                  {realizacaoState.badgeText}
-                </span>
-              </div>
-
-              <div className="premium-realizacao-progress-wrapper">
-                <div 
-                  className="premium-realizacao-progress-fill" 
-                  style={{ 
-                    width: `${pctBar}%`, 
-                    backgroundColor: realizacaoState.color 
-                  }} 
-                />
-                {pctBar >= 100 && (
-                  <div className="premium-realizacao-progress-check">
-                    <CheckCircle2 size={10} color="white" />
-                  </div>
-                )}
-              </div>
-
-              <p className="premium-realizacao-desc">
-                {realizacaoState.text}
-              </p>
-            </div>
-
-            <div className="premium-realizacao-stats-grid">
-              <div className="premium-realizacao-stat-item">
-                <div className="premium-realizacao-stat-icon-wrapper">
-                  <Wallet size={12} />
-                </div>
-                <div className="premium-realizacao-stat-content">
-                  <span className="premium-realizacao-stat-label">Previsto</span>
-                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
-                    R$ {brl(totalPeriodo)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="premium-realizacao-stat-item">
-                <div className="premium-realizacao-stat-icon-wrapper">
-                  <DollarSign size={12} />
-                </div>
-                <div className="premium-realizacao-stat-content">
-                  <span className="premium-realizacao-stat-label">Recebido</span>
-                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
-                    R$ {brl(recebido)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className={`premium-realizacao-banner ${realizacaoState.bannerClass}`}>
-              <div className="premium-realizacao-banner-icon">
-                {realizacaoState.status === 'completed' ? (
-                  <CheckCircle2 size={14} />
-                ) : (
-                  <TrendingUp size={14} />
-                )}
-              </div>
-              <div className="premium-realizacao-banner-content">
-                <span className="premium-realizacao-banner-title">{realizacaoState.bannerTitle}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-4">
-          <div className="premium-health-card">
-            <div className="premium-health-header">
-              <div className="premium-health-title-container">
-                <div className="premium-health-icon-wrapper">
-                  <HeartPulse size={16} />
-                </div>
-                <div className="premium-health-divider" />
-                <span className="premium-health-title">SAÚDE DA RECEITA</span>
-              </div>
-              <div className="premium-health-info">
-                <CardInfoTooltip content="Considera atrasos, previsibilidade, concentração das fontes e variação histórica." />
-              </div>
-            </div>
-
-            <div className="premium-health-body">
-              <div className="premium-health-score-container">
-                <svg viewBox="0 0 100 100" className="premium-health-score-svg">
-                  <circle cx="50" cy="50" r={HEALTH_SCORE_RADIUS} className="premium-health-score-bg-circle" />
-                  <circle 
-                    cx="50" 
-                    cy="50" 
-                    r={HEALTH_SCORE_RADIUS} 
-                    className="premium-health-score-fill-circle" 
-                    style={{ 
-                      stroke: strokeColor,
-                      strokeDasharray: `${circumference}`, 
-                      strokeDashoffset: `${circumference * (1 - saudeMetrics.score / 100)}` 
-                    }} 
-                  />
-                  {saudeMetrics.score > 0 && (
-                    <circle cx={dotX} cy={dotY} r="4" fill="#FCFAF7" stroke={strokeColor} strokeWidth="2" />
-                  )}
-                </svg>
-                <div className="premium-health-score-value-wrapper">
-                  <span className={`premium-health-score-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
-                  <span className="premium-health-score-total">/100</span>
-                </div>
-              </div>
-
-              <div className="premium-health-status-container">
-                <span className={`premium-health-badge ${getBadgeClass(saudeMetrics.status)}`}>
-                  <ShieldCheck size={12} />
-                  {saudeMetrics.label}
-                </span>
-                <p className="premium-health-desc">
-                  {saudeMetrics.description}
-                </p>
-              </div>
-            </div>
-
-            <div className="premium-health-footer">
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.predictability.level), 
-                    background: getLevelBg(saudeMetrics.indicators.predictability.level) 
-                  }}
-                >
-                  <TrendingUp size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.predictability.label}</span>
-                </div>
-              </div>
-
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.delays.level), 
-                    background: getLevelBg(saudeMetrics.indicators.delays.level) 
-                  }}
-                >
-                  <CalendarClock size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.delays.label}</span>
-                </div>
-              </div>
-
-              <div className="premium-health-indicator-item">
-                <div 
-                  className="premium-health-indicator-icon-wrapper"
-                  style={{ 
-                    color: getLevelColor(saudeMetrics.indicators.diversification.level), 
-                    background: getLevelBg(saudeMetrics.indicators.diversification.level) 
-                  }}
-                >
-                  <PieChart size={12} />
-                </div>
-                <div className="premium-health-indicator-content">
-                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.diversification.label}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ROW 2: Composição, Dependência, Histórico */}
-        <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'var(--teal)', padding: 6, borderRadius: 8, color: 'white' }}>
-                  <PieChart size={16} />
-                </div>
-                <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
-                  Composição da Receita
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.1)', padding: '4px 10px', borderRadius: 8 }}>
-                  {pctFixa}% Fixa
-                </div>
-                <CardInfoTooltip content="Divide suas entradas entre receitas fixas/previsíveis e variáveis/eventuais." />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
-              {/* Coluna Fixa */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 5, background: 'var(--teal)' }} /> Receita Fixa
-                </div>
-                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
-                  R$ {brl(receitaFixa)}
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.1)', padding: '2px 8px', borderRadius: 6 }}>
-                    {pctFixa}% do total
-                  </span>
-                </div>
-              </div>
-              
-              <div style={{ width: 1, background: 'var(--line-soft)', opacity: 0.8 }} />
-
-              {/* Coluna Variável */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 5, background: 'var(--orange)' }} /> Receita Variável
-                </div>
-                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
-                  R$ {brl(receitaVar)}
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange-ink)', background: 'rgba(245,124,0,0.1)', padding: '2px 8px', borderRadius: 6 }}>
-                    {pctVar}% do total
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Barra */}
-            <div style={{ width: '100%', height: 14, borderRadius: 7, background: 'var(--surface-2)', display: 'flex', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)' }}>
-              {totalPeriodo > 0 ? (
-                <>
-                  {pctFixa > 0 && <div style={{ width: `${pctFixa}%`, background: 'var(--teal)', minWidth: 4 }} />}
-                  {pctVar > 0 && <div style={{ width: `${pctVar}%`, background: 'var(--orange)', minWidth: 4 }} />}
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px' }}>
-            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
-              Dependência da Principal Fonte
-              <CardInfoTooltip content="Mostra quanto a maior fonte representa da receita prevista no período." />
-            </div>
-            {catRanking.length > 0 ? (
-              (() => {
-                const topCat = catRanking[0];
-                const pct = Math.round((topCat[1] / totalPeriodo) * 100);
-                let statusText = 'Saudável';
-                let statusColor = 'var(--teal)';
-                let statusBg = 'rgba(1,88,76,0.1)';
-                let msg = 'Receita bem distribuída.';
-                if (pct > 70) {
-                  statusText = 'Alta dependência';
-                  statusColor = 'var(--neg)';
-                  statusBg = 'rgba(239,68,68,0.1)';
-                  msg = `concentra ${pct}% da receita prevista.`;
-                } else if (pct > 40) {
-                  statusText = 'Atenção';
-                  statusColor = 'var(--orange-ink)';
-                  statusBg = 'rgba(245,124,0,0.1)';
-                  msg = 'tem peso relevante na sua renda.';
-                }
-
-                return (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Representa {pct}%</span>
-                      <span style={{ background: statusBg, color: statusColor, fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        {statusText}
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: 6, background: 'var(--surface-2)', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 3 }} />
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, margin: 0 }}>
-                      <strong>{topCat[0]}</strong> {msg}
-                    </p>
-                  </div>
-                )
-              })()
-            ) : (
-              <p className="empty-msg" style={{ padding: '10px 0', fontSize: 12 }}>Sem dados.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '20px' }}>
-            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
-              Histórico (4 Meses)
-              <CardInfoTooltip content="Compara sua receita recente para identificar crescimento, queda ou estabilidade." />
-            </div>
-            {hasPreviousHistory ? (
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 70, padding: '0 4px' }}>
-                {history4m.map((m, i) => {
-                  const barH = maxHVal > 0 ? Math.max(10, Math.round((m.total / maxHVal) * 50)) : 10
-                  const isCurrent = i === 3
-                  return (
-                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '22%' }}>
-                      {m.total > 0 && (
-                        <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 10, fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--faint)' }}>
-                          {m.total >= 1000 ? `${(m.total/1000).toFixed(1)}k` : m.total}
-                        </span>
-                      )}
-                      <div style={{ width: '100%', maxWidth: 28, height: barH, background: isCurrent ? 'var(--teal)' : 'var(--surface-3)', borderRadius: '4px 4px 0 0' }} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'capitalize' }}>{m.label.substring(0,3)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
-                <div style={{ background: 'rgba(13, 61, 55, 0.03)', border: '1px dashed rgba(13, 61, 55, 0.1)', borderRadius: '12px', padding: '10px', marginBottom: 10, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CalendarClock size={20} style={{ opacity: 0.5 }} />
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>
-                  Ainda há pouco histórico
-                </span>
-                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4, margin: 0, maxWidth: 180 }}>
-                  Continue registrando receitas para comparar tendências.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="fd-grid" style={{ rowGap: 16 }}>
-        {/* Fontes (Ranking) */}
-        <div className="col-8">
-          <div className="card" style={{ height: '100%', padding: '24px' }}>
-            {(() => {
-              const numSources = catRanking.length;
-              const topCat = catRanking.length > 0 ? catRanking[0] : null;
-              const topPct = topCat && totalPeriodo > 0 ? Math.round((topCat[1] / totalPeriodo) * 100) : 0;
-              
-              let divBadge = 'Baixa';
-              let divColor = 'var(--neg)';
-              let divBg = 'rgba(239,68,68,0.1)';
-              let insightText = '';
-              
-              if (numSources >= 3 && topPct <= 50) {
-                divBadge = 'Boa';
-                divColor = 'var(--green)';
-                divBg = 'rgba(40,167,69,0.1)';
-                insightText = `Sua renda está bem distribuída entre ${numSources} fontes.`;
-              } else if (numSources >= 2) {
-                divBadge = 'Moderada';
-                divColor = 'var(--orange-ink)';
-                divBg = 'rgba(245,124,0,0.1)';
-                insightText = `Renda dividida, mas ${topCat?.[0]} ainda concentra ${topPct}% do total.`;
-              } else if (numSources === 1) {
-                divBadge = 'Baixa';
-                divColor = 'var(--neg)';
-                divBg = 'rgba(239,68,68,0.1)';
-                insightText = `Atenção: 100% da sua renda depende exclusivamente de ${topCat?.[0]}.`;
-              }
-              
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
-                        Fontes de Receita
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{numSources} fonte{numSources !== 1 ? 's' : ''} identificada{numSources !== 1 ? 's' : ''} no período.</div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {numSources > 0 && (
-                        <span style={{ background: divBg, color: divColor, fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          {divBadge}
-                        </span>
-                      )}
-                      <CardInfoTooltip content="Como avaliamos: Baixa (1 fonte), Moderada (2 fontes), Boa (3+ fontes). A concentração da fonte principal também é considerada." />
-                    </div>
-                  </div>
-                  
-                  {numSources > 0 && (
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', margin: 0, paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
-                      {insightText}
-                    </p>
-                  )}
-                  
-                  {numSources > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 4 }}>
-                      {catRanking.map(([catName, val]) => {
-                        const pct = totalPeriodo > 0 ? Math.round((val / totalPeriodo) * 100) : 0
-                        const catColor = categories.find(c => c.name === catName)?.color || '#90A4AE'
-                        return (
-                          <div key={catName} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-                                <span style={{ width: 10, height: 10, borderRadius: 5, background: catColor }} /> {catName || 'Sem categoria'}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>R$ {brl(val)}</span>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', width: 36, textAlign: 'right' }}>{pct}%</span>
-                              </div>
-                            </div>
-                            <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{ width: `${pct}%`, height: '100%', background: catColor, borderRadius: 2 }} />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="empty-msg" style={{ fontSize: 12 }}>Nenhuma receita registrada.</p>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-
-        {/* Finnly IA */}
-        <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '24px', background: 'linear-gradient(145deg, #ffffff, #f2f9f8)', border: '1px solid var(--teal)', boxShadow: '0 8px 24px rgba(1,88,76,0.08)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'var(--teal)', padding: 8, borderRadius: 10, boxShadow: '0 4px 12px rgba(1,88,76,0.2)' }}>
-                  <Sparkles size={18} color="white" />
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--teal-900)' }}>FINNLY IA</span>
-              </div>
-              <CardInfoTooltip content="Sugestões inteligentes para entender melhor suas entradas e oportunidades." />
-            </div>
-            
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4 }}>
-              Entenda suas receitas, pendências e oportunidades com ajuda da IA.
-            </p>
-            
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'auto' }}>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Analisar receitas")}>
-                Analisar receitas
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Minha renda está concentrada?")}>
-                Renda concentrada?
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Previsão do mês")}>
-                Previsão do mês
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Como aumentar renda?")}>
-                Como aumentar renda?
-              </button>
-            </div>
-            
-            <button className="btn-primary" style={{ width: '100%', marginTop: 24, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => onAsk?.("Gostaria de falar com o Finnly IA sobre minhas receitas.")}>
-              <Sparkles size={16} /> Perguntar ao Finnly IA
-            </button>
-            
-            <style jsx>{`
-              .ia-action-chip {
-                display: flex;
-                align-items: center;
-                padding: 6px 12px;
-                background: white;
-                border: 1px solid var(--line-soft);
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: 600;
-                color: var(--ink);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-              }
-              .ia-action-chip:hover {
-                transform: translateY(-1px);
-                border-color: var(--teal);
-                color: var(--teal-900);
-                box-shadow: 0 4px 8px rgba(1,88,76,0.1);
-              }
-            `}</style>
-          </div>
-        </div>
-      </div>
-
-      {/* --- TABLE --- */}
+      {/* --- PRIMEIRA DOBRA: GRID PRINCIPAL --- */}
+      <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
+        <div className="receitas-main-col">
       <section className="card fade-up" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '20px 20px 0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -1173,6 +558,612 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           )}
         </div>
       </section>
+        </div>
+        <div className="receitas-rail-col">
+          <div className="premium-periodo-card">
+            <div className="premium-periodo-header">
+              <div className="premium-periodo-title-container">
+                <div className="premium-periodo-icon-wrapper">
+                  <Wallet size={16} />
+                </div>
+                <div className="premium-periodo-divider" />
+                <span className="premium-periodo-title">RECEITAS DO PERÍODO</span>
+              </div>
+              <div className="premium-periodo-info">
+                <CardInfoTooltip content="Mostra o total de receitas previstas no período, separando o que já foi recebido, pendente e atrasado." />
+              </div>
+            </div>
+
+            <div className="premium-periodo-meta-container">
+              <span className="premium-periodo-subtitle">Total previsto no período</span>
+              <div className="premium-periodo-value-container">
+                <span className="premium-periodo-currency">R$</span>
+                <span className={`premium-periodo-value tabnums${hidden ? ' priv' : ''}`}>
+                  {brl(totalPeriodo)}
+                </span>
+              </div>
+            </div>
+
+            <div className="premium-periodo-progress-wrapper">
+              {propRecebido > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)', minWidth: '4px' }} 
+                />
+              )}
+              {propPendente > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)', minWidth: '4px' }} 
+                />
+              )}
+              {propAtrasado > 0 && (
+                <div 
+                  className="premium-periodo-progress-segment" 
+                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)', minWidth: '4px' }} 
+                />
+              )}
+            </div>
+
+            <div className="premium-periodo-grid">
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-recebido">
+                    <CheckCircle2 size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Recebido</span>
+                </div>
+                <span className={`premium-periodo-item-value val-recebido tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(recebido)}
+                </span>
+                <span className="premium-periodo-item-pill pill-recebido">
+                  {pctRecebido}% do total
+                </span>
+              </div>
+
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-pendente">
+                    <TrendingUp size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Pendente</span>
+                </div>
+                <span className={`premium-periodo-item-value val-pendente tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(pendente)}
+                </span>
+                <span className="premium-periodo-item-pill pill-pendente">
+                  {pctPendente}% do total
+                </span>
+              </div>
+
+              <div className="premium-periodo-grid-item">
+                <div className="premium-periodo-item-top">
+                  <div className="premium-periodo-item-icon-wrapper icon-atrasado">
+                    <AlertCircle size={12} />
+                  </div>
+                  <span className="premium-periodo-item-label">Atrasado</span>
+                </div>
+                <span className={`premium-periodo-item-value val-atrasado tabnums${hidden ? ' priv' : ''}`}>
+                  R$ {brl(atrasado)}
+                </span>
+                <span className="premium-periodo-item-pill pill-atrasado">
+                  {pctAtrasado}% do total
+                </span>
+              </div>
+            </div>
+
+            <div className={`premium-periodo-banner ${periodoState.bannerClass}`}>
+              <div className="premium-periodo-banner-icon">
+                {periodoState.status === 'recebido' ? (
+                  <CheckCircle2 size={14} />
+                ) : periodoState.status === 'atrasado' ? (
+                  <AlertCircle size={14} />
+                ) : (
+                  <TrendingUp size={14} />
+                )}
+              </div>
+              <div className="premium-periodo-banner-content">
+                <span className="premium-periodo-banner-title">{periodoState.title}</span>
+              </div>
+              <div className="premium-periodo-banner-illustration">
+                <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
+                  <path d="M2 22L12 17L22 19L32 10L42 12L58 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="17" r="2" fill="currentColor" />
+                  <circle cx="22" cy="19" r="2" fill="currentColor" />
+                  <circle cx="32" cy="10" r="2" fill="currentColor" />
+                  <circle cx="42" cy="12" r="2" fill="currentColor" />
+                  <circle cx="58" cy="2" r="2" fill="currentColor" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="premium-realizacao-card">
+            <div className="premium-realizacao-header">
+              <div className="premium-realizacao-title-container">
+                <div className="premium-realizacao-icon-wrapper">
+                  <Percent size={16} />
+                </div>
+                <div className="premium-realizacao-divider" />
+                <span className="premium-realizacao-title">REALIZAÇÃO DO MÊS</span>
+              </div>
+              <div className="premium-realizacao-info">
+                <CardInfoTooltip content="Compara o valor já recebido com a receita prevista para o mês." />
+              </div>
+            </div>
+
+            <div className="premium-realizacao-body">
+              <div className="premium-realizacao-score-row">
+                <span className={`premium-realizacao-percentage tabnums${hidden ? ' priv' : ''}`}>
+                  {pctRealizacaoDisplayStr}%
+                </span>
+                <span className={`premium-realizacao-badge ${realizacaoState.badgeClass}`}>
+                  {realizacaoState.status === 'completed' && <CheckCircle2 size={12} />}
+                  {realizacaoState.badgeText}
+                </span>
+              </div>
+
+              <div className="premium-realizacao-progress-wrapper">
+                <div 
+                  className="premium-realizacao-progress-fill" 
+                  style={{ 
+                    width: `${pctBar}%`, 
+                    backgroundColor: realizacaoState.color 
+                  }} 
+                />
+                {pctBar >= 100 && (
+                  <div className="premium-realizacao-progress-check">
+                    <CheckCircle2 size={10} color="white" />
+                  </div>
+                )}
+              </div>
+
+              <p className="premium-realizacao-desc">
+                {realizacaoState.text}
+              </p>
+            </div>
+
+            <div className="premium-realizacao-stats-grid">
+              <div className="premium-realizacao-stat-item">
+                <div className="premium-realizacao-stat-icon-wrapper">
+                  <Wallet size={12} />
+                </div>
+                <div className="premium-realizacao-stat-content">
+                  <span className="premium-realizacao-stat-label">Previsto</span>
+                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
+                    R$ {brl(totalPeriodo)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="premium-realizacao-stat-item">
+                <div className="premium-realizacao-stat-icon-wrapper">
+                  <DollarSign size={12} />
+                </div>
+                <div className="premium-realizacao-stat-content">
+                  <span className="premium-realizacao-stat-label">Recebido</span>
+                  <span className={`premium-realizacao-stat-value tabnums${hidden ? ' priv' : ''}`}>
+                    R$ {brl(recebido)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`premium-realizacao-banner ${realizacaoState.bannerClass}`}>
+              <div className="premium-realizacao-banner-icon">
+                {realizacaoState.status === 'completed' ? (
+                  <CheckCircle2 size={14} />
+                ) : (
+                  <TrendingUp size={14} />
+                )}
+              </div>
+              <div className="premium-realizacao-banner-content">
+                <span className="premium-realizacao-banner-title">{realizacaoState.bannerTitle}</span>
+              </div>
+            </div>
+          </div>
+          <div className="premium-health-card">
+            <div className="premium-health-header">
+              <div className="premium-health-title-container">
+                <div className="premium-health-icon-wrapper">
+                  <HeartPulse size={16} />
+                </div>
+                <div className="premium-health-divider" />
+                <span className="premium-health-title">SAÚDE DA RECEITA</span>
+              </div>
+              <div className="premium-health-info">
+                <CardInfoTooltip content="Considera atrasos, previsibilidade, concentração das fontes e variação histórica." />
+              </div>
+            </div>
+
+            <div className="premium-health-body">
+              <div className="premium-health-score-container">
+                <svg viewBox="0 0 100 100" className="premium-health-score-svg">
+                  <circle cx="50" cy="50" r={HEALTH_SCORE_RADIUS} className="premium-health-score-bg-circle" />
+                  <circle 
+                    cx="50" 
+                    cy="50" 
+                    r={HEALTH_SCORE_RADIUS} 
+                    className="premium-health-score-fill-circle" 
+                    style={{ 
+                      stroke: strokeColor,
+                      strokeDasharray: `${circumference}`, 
+                      strokeDashoffset: `${circumference * (1 - saudeMetrics.score / 100)}` 
+                    }} 
+                  />
+                  {saudeMetrics.score > 0 && (
+                    <circle cx={dotX} cy={dotY} r="4" fill="#FCFAF7" stroke={strokeColor} strokeWidth="2" />
+                  )}
+                </svg>
+                <div className="premium-health-score-value-wrapper">
+                  <span className={`premium-health-score-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
+                  <span className="premium-health-score-total">/100</span>
+                </div>
+              </div>
+
+              <div className="premium-health-status-container">
+                <span className={`premium-health-badge ${getBadgeClass(saudeMetrics.status)}`}>
+                  <ShieldCheck size={12} />
+                  {saudeMetrics.label}
+                </span>
+                <p className="premium-health-desc">
+                  {saudeMetrics.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="premium-health-footer">
+              <div className="premium-health-indicator-item">
+                <div 
+                  className="premium-health-indicator-icon-wrapper"
+                  style={{ 
+                    color: getLevelColor(saudeMetrics.indicators.predictability.level), 
+                    background: getLevelBg(saudeMetrics.indicators.predictability.level) 
+                  }}
+                >
+                  <TrendingUp size={12} />
+                </div>
+                <div className="premium-health-indicator-content">
+                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.predictability.label}</span>
+                </div>
+              </div>
+
+              <div className="premium-health-indicator-item">
+                <div 
+                  className="premium-health-indicator-icon-wrapper"
+                  style={{ 
+                    color: getLevelColor(saudeMetrics.indicators.delays.level), 
+                    background: getLevelBg(saudeMetrics.indicators.delays.level) 
+                  }}
+                >
+                  <CalendarClock size={12} />
+                </div>
+                <div className="premium-health-indicator-content">
+                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.delays.label}</span>
+                </div>
+              </div>
+
+              <div className="premium-health-indicator-item">
+                <div 
+                  className="premium-health-indicator-icon-wrapper"
+                  style={{ 
+                    color: getLevelColor(saudeMetrics.indicators.diversification.level), 
+                    background: getLevelBg(saudeMetrics.indicators.diversification.level) 
+                  }}
+                >
+                  <PieChart size={12} />
+                </div>
+                <div className="premium-health-indicator-content">
+                  <span className="premium-health-indicator-title">{saudeMetrics.indicators.diversification.label}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* --- SEGUNDA DOBRA: ANÁLISES COMPLEMENTARES --- */}
+      <div className="fd-grid fade-up" style={{ rowGap: 16, marginBottom: 16 }}>
+        <div className="col-4">
+          <div className="card" style={{ height: '100%', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: 'var(--teal)', padding: 6, borderRadius: 8, color: 'white' }}>
+                  <PieChart size={16} />
+                </div>
+                <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
+                  Composição da Receita
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.1)', padding: '4px 10px', borderRadius: 8 }}>
+                  {pctFixa}% Fixa
+                </div>
+                <CardInfoTooltip content="Divide suas entradas entre receitas fixas/previsíveis e variáveis/eventuais." />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+              {/* Coluna Fixa */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 5, background: 'var(--teal)' }} /> Receita Fixa
+                </div>
+                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
+                  R$ {brl(receitaFixa)}
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                    {pctFixa}% do total
+                  </span>
+                </div>
+              </div>
+              
+              <div style={{ width: 1, background: 'var(--line-soft)', opacity: 0.8 }} />
+
+              {/* Coluna Variável */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 5, background: 'var(--orange)' }} /> Receita Variável
+                </div>
+                <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
+                  R$ {brl(receitaVar)}
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange-ink)', background: 'rgba(245,124,0,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                    {pctVar}% do total
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Barra */}
+            <div style={{ width: '100%', height: 14, borderRadius: 7, background: 'var(--surface-2)', display: 'flex', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)' }}>
+              {totalPeriodo > 0 ? (
+                <>
+                  {pctFixa > 0 && <div style={{ width: `${pctFixa}%`, background: 'var(--teal)', minWidth: 4 }} />}
+                  {pctVar > 0 && <div style={{ width: `${pctVar}%`, background: 'var(--orange)', minWidth: 4 }} />}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className="col-4">
+          <div className="card" style={{ height: '100%', padding: '20px' }}>
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
+              Dependência da Principal Fonte
+              <CardInfoTooltip content="Mostra quanto a maior fonte representa da receita prevista no período." />
+            </div>
+            {catRanking.length > 0 ? (
+              (() => {
+                const topCat = catRanking[0];
+                const pct = Math.round((topCat[1] / totalPeriodo) * 100);
+                let statusText = 'Saudável';
+                let statusColor = 'var(--teal)';
+                let statusBg = 'rgba(1,88,76,0.1)';
+                let msg = 'Receita bem distribuída.';
+                if (pct > 70) {
+                  statusText = 'Alta dependência';
+                  statusColor = 'var(--neg)';
+                  statusBg = 'rgba(239,68,68,0.1)';
+                  msg = `concentra ${pct}% da receita prevista.`;
+                } else if (pct > 40) {
+                  statusText = 'Atenção';
+                  statusColor = 'var(--orange-ink)';
+                  statusBg = 'rgba(245,124,0,0.1)';
+                  msg = 'tem peso relevante na sua renda.';
+                }
+
+                return (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Representa {pct}%</span>
+                      <span style={{ background: statusBg, color: statusColor, fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {statusText}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: 6, background: 'var(--surface-2)', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 3 }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, margin: 0 }}>
+                      <strong>{topCat[0]}</strong> {msg}
+                    </p>
+                  </div>
+                )
+              })()
+            ) : (
+              <p className="empty-msg" style={{ padding: '10px 0', fontSize: 12 }}>Sem dados.</p>
+            )}
+          </div>
+        </div>
+        <div className="col-4">
+          <div className="card" style={{ height: '100%', padding: '20px' }}>
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
+              Histórico (4 Meses)
+              <CardInfoTooltip content="Compara sua receita recente para identificar crescimento, queda ou estabilidade." />
+            </div>
+            {hasPreviousHistory ? (
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 70, padding: '0 4px' }}>
+                {history4m.map((m, i) => {
+                  const barH = maxHVal > 0 ? Math.max(10, Math.round((m.total / maxHVal) * 50)) : 10
+                  const isCurrent = i === 3
+                  return (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '22%' }}>
+                      {m.total > 0 && (
+                        <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 10, fontWeight: 700, color: isCurrent ? 'var(--teal)' : 'var(--faint)' }}>
+                          {m.total >= 1000 ? `${(m.total/1000).toFixed(1)}k` : m.total}
+                        </span>
+                      )}
+                      <div style={{ width: '100%', maxWidth: 28, height: barH, background: isCurrent ? 'var(--teal)' : 'var(--surface-3)', borderRadius: '4px 4px 0 0' }} />
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'capitalize' }}>{m.label.substring(0,3)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
+                <div style={{ background: 'rgba(13, 61, 55, 0.03)', border: '1px dashed rgba(13, 61, 55, 0.1)', borderRadius: '12px', padding: '10px', marginBottom: 10, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CalendarClock size={20} style={{ opacity: 0.5 }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>
+                  Ainda há pouco histórico
+                </span>
+                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4, margin: 0, maxWidth: 180 }}>
+                  Continue registrando receitas para comparar tendências.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* --- TERCEIRA DOBRA: OUTRAS ANÁLISES --- */}
+      <div className="fd-grid fade-up" style={{ rowGap: 16 }}>
+        <div className="col-8">
+          <div className="card" style={{ height: '100%', padding: '24px' }}>
+            {(() => {
+              const numSources = catRanking.length;
+              const topCat = catRanking.length > 0 ? catRanking[0] : null;
+              const topPct = topCat && totalPeriodo > 0 ? Math.round((topCat[1] / totalPeriodo) * 100) : 0;
+              
+              let divBadge = 'Baixa';
+              let divColor = 'var(--neg)';
+              let divBg = 'rgba(239,68,68,0.1)';
+              let insightText = '';
+              
+              if (numSources >= 3 && topPct <= 50) {
+                divBadge = 'Boa';
+                divColor = 'var(--green)';
+                divBg = 'rgba(40,167,69,0.1)';
+                insightText = `Sua renda está bem distribuída entre ${numSources} fontes.`;
+              } else if (numSources >= 2) {
+                divBadge = 'Moderada';
+                divColor = 'var(--orange-ink)';
+                divBg = 'rgba(245,124,0,0.1)';
+                insightText = `Renda dividida, mas ${topCat?.[0]} ainda concentra ${topPct}% do total.`;
+              } else if (numSources === 1) {
+                divBadge = 'Baixa';
+                divColor = 'var(--neg)';
+                divBg = 'rgba(239,68,68,0.1)';
+                insightText = `Atenção: 100% da sua renda depende exclusivamente de ${topCat?.[0]}.`;
+              }
+              
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
+                        Fontes de Receita
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{numSources} fonte{numSources !== 1 ? 's' : ''} identificada{numSources !== 1 ? 's' : ''} no período.</div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {numSources > 0 && (
+                        <span style={{ background: divBg, color: divColor, fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {divBadge}
+                        </span>
+                      )}
+                      <CardInfoTooltip content="Como avaliamos: Baixa (1 fonte), Moderada (2 fontes), Boa (3+ fontes). A concentração da fonte principal também é considerada." />
+                    </div>
+                  </div>
+                  
+                  {numSources > 0 && (
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', margin: 0, paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
+                      {insightText}
+                    </p>
+                  )}
+                  
+                  {numSources > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 4 }}>
+                      {catRanking.map(([catName, val]) => {
+                        const pct = totalPeriodo > 0 ? Math.round((val / totalPeriodo) * 100) : 0
+                        const catColor = categories.find(c => c.name === catName)?.color || '#90A4AE'
+                        return (
+                          <div key={catName} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: 5, background: catColor }} /> {catName || 'Sem categoria'}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>R$ {brl(val)}</span>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', width: 36, textAlign: 'right' }}>{pct}%</span>
+                              </div>
+                            </div>
+                            <div style={{ width: '100%', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: catColor, borderRadius: 2 }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="empty-msg" style={{ fontSize: 12 }}>Nenhuma receita registrada.</p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+        <div className="col-4">
+          <div className="card" style={{ height: '100%', padding: '24px', background: 'linear-gradient(145deg, #ffffff, #f2f9f8)', border: '1px solid var(--teal)', boxShadow: '0 8px 24px rgba(1,88,76,0.08)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: 'var(--teal)', padding: 8, borderRadius: 10, boxShadow: '0 4px 12px rgba(1,88,76,0.2)' }}>
+                  <Sparkles size={18} color="white" />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--teal-900)' }}>FINNLY IA</span>
+              </div>
+              <CardInfoTooltip content="Sugestões inteligentes para entender melhor suas entradas e oportunidades." />
+            </div>
+            
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4 }}>
+              Entenda suas receitas, pendências e oportunidades com ajuda da IA.
+            </p>
+            
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'auto' }}>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Analisar receitas")}>
+                Analisar receitas
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Minha renda está concentrada?")}>
+                Renda concentrada?
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Previsão do mês")}>
+                Previsão do mês
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Como aumentar renda?")}>
+                Como aumentar renda?
+              </button>
+            </div>
+            
+            <button className="btn-primary" style={{ width: '100%', marginTop: 24, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => onAsk?.("Gostaria de falar com o Finnly IA sobre minhas receitas.")}>
+              <Sparkles size={16} /> Perguntar ao Finnly IA
+            </button>
+            
+            <style jsx>{`
+              .ia-action-chip {
+                display: flex;
+                align-items: center;
+                padding: 6px 12px;
+                background: white;
+                border: 1px solid var(--line-soft);
+                border-radius: 16px;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--ink);
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+              }
+              .ia-action-chip:hover {
+                transform: translateY(-1px);
+                border-color: var(--teal);
+                color: var(--teal-900);
+                box-shadow: 0 4px 8px rgba(1,88,76,0.1);
+              }
+            `}</style>
+          </div>
+        </div>
+      </div>
 
       {(showIncomeModal || editIncome) && (
         <PremiumIncomeModal

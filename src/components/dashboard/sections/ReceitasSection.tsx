@@ -233,13 +233,19 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   }, [hasForecast, recebido, pctRealizacaoDisplayVal, faltante])
 
   // --- Receitas do Período Calculations ---
-  const pctRecebido = totalPeriodo > 0 ? Math.round((recebido / totalPeriodo) * 100) : 0
-  const pctPendente = totalPeriodo > 0 ? Math.round((pendente / totalPeriodo) * 100) : 0
-  const pctAtrasado = totalPeriodo > 0 ? Math.round((atrasado / totalPeriodo) * 100) : 0
-
   const propRecebido = totalPeriodo > 0 ? (recebido / totalPeriodo) * 100 : 0
   const propPendente = totalPeriodo > 0 ? (pendente / totalPeriodo) * 100 : 0
   const propAtrasado = totalPeriodo > 0 ? (atrasado / totalPeriodo) * 100 : 0
+
+  const getPropDisplay = (prop: number) => {
+    if (prop === 0) return '0'
+    if (prop > 0 && prop < 1) return '<1'
+    return `${Math.round(prop)}`
+  }
+
+  const pctRecebido = getPropDisplay(propRecebido)
+  const pctPendente = getPropDisplay(propPendente)
+  const pctAtrasado = getPropDisplay(propAtrasado)
 
   const periodoState = useMemo(() => {
     if (totalPeriodo <= 0) {

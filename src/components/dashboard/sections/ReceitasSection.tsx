@@ -496,11 +496,34 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           {loading ? (
             <p className="empty-msg" style={{ padding: '30px 0', fontSize: 13 }}>Carregando...</p>
           ) : filteredIncomes.length === 0 ? (
-            <div className="empty-list" style={{ padding: '40px 0' }}>
-              <Search size={24} color="var(--line-strong)" style={{ marginBottom: 12 }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Nenhuma receita encontrada.</p>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Tente ajustar os filtros ou a busca.</p>
-            </div>
+            searchQuery.trim() || activeFilterCount > 0 ? (
+              <div className="empty-list" style={{ padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <Search size={24} color="var(--line-strong)" style={{ marginBottom: 12 }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Nenhuma receita encontrada.</p>
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Tente ajustar os filtros ou a busca.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', textAlign: 'center' }}>
+                <div style={{ 
+                  width: 56, 
+                  height: 56, 
+                  borderRadius: 16, 
+                  background: '#FCFAF7', 
+                  border: '1px dashed rgba(13, 61, 55, 0.15)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  marginBottom: 16,
+                  color: 'var(--muted)'
+                }}>
+                  <CalendarClock size={24} />
+                </div>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--teal-900)', margin: '0 0 6px 0' }}>Nenhuma receita registrada</h3>
+                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, maxWidth: 260, lineHeight: 1.4 }}>
+                  Comece a adicionar suas receitas para acompanhar suas metas e fluxo.
+                </p>
+              </div>
+            )
           ) : (
             <div style={{ marginTop: 12 }}>
               {paginatedIncomes.map(item => {

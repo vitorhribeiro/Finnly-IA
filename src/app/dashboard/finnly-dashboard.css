@@ -3436,8 +3436,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .compact-insight-card {
-  background: white;
-  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 16px;
   display: flex;

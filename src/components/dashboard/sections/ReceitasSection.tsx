@@ -694,22 +694,22 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             {/* Body */}
             <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Top Section: Gauge + Badge/Description */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {/* Circular Gauge */}
-                <div style={{ width: 68, height: 68, position: 'relative', flexShrink: 0 }}>
-                  <svg viewBox="0 0 68 68" style={{ width: 68, height: 68, transform: 'rotate(-90deg)' }}>
-                    <circle cx="34" cy="34" r="28" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
+                <div style={{ width: 76, height: 76, position: 'relative', flexShrink: 0 }}>
+                  <svg viewBox="0 0 76 76" style={{ width: 76, height: 76, transform: 'rotate(-90deg)' }}>
+                    <circle cx="38" cy="38" r="31" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
                     <circle 
-                      cx="34" cy="34" r="28" fill="none" 
-                      stroke={strokeColor} strokeWidth="5" 
-                      strokeDasharray="175.93"
-                      strokeDashoffset={`${2 * Math.PI * 28 * (1 - saudeMetrics.score / 100)}`}
+                      cx="38" cy="38" r="31" fill="none" 
+                      stroke={strokeColor} strokeWidth="5.5" 
+                      strokeDasharray="194.78"
+                      strokeDashoffset={`${194.78 * (1 - saudeMetrics.score / 100)}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
-                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 19, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, marginTop: 1 }}>/100</span>
+                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 21, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
+                    <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 700, marginTop: 0.5 }}>/100</span>
                   </div>
                 </div>
 
@@ -723,7 +723,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'SAUDÁVEL',
                           bg: 'rgba(40,167,69,0.08)',
                           color: 'var(--green)',
-                          icon: <CheckCircle2 size={9} />
+                          icon: <CheckCircle2 size={8} />
                         }
                       }
                       if (status === 'light_attention') {
@@ -731,7 +731,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'ATENÇÃO LEVE',
                           bg: 'rgba(255,179,0,0.08)',
                           color: '#A06E00',
-                          icon: <AlertTriangle size={9} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       if (status === 'attention') {
@@ -739,7 +739,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'ATENÇÃO MODERADA',
                           bg: 'rgba(255,179,0,0.08)',
                           color: '#A06E00',
-                          icon: <AlertTriangle size={9} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       if (status === 'critical') {
@@ -747,29 +747,29 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'CRÍTICO',
                           bg: 'rgba(239,68,68,0.08)',
                           color: 'var(--neg)',
-                          icon: <AlertTriangle size={9} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       return {
                         text: 'SEM DADOS',
                         bg: 'var(--surface-2)',
                         color: 'var(--muted)',
-                        icon: <Info size={9} />
+                        icon: <Info size={8} />
                       }
                     }
                     const badge = getBadgeDetails(saudeMetrics.status)
                     return (
                       <span 
                         style={{ 
-                          fontSize: 8.5, 
-                          padding: '3px 7px', 
-                          borderRadius: 7, 
+                          fontSize: 8, 
+                          padding: '2px 6px', 
+                          borderRadius: 6, 
                           fontWeight: 800, 
                           background: badge.bg, 
                           color: badge.color,
                           display: 'inline-flex', 
                           alignItems: 'center', 
-                          gap: 3.5, 
+                          gap: 3, 
                           letterSpacing: '0.05em',
                           alignSelf: 'flex-start'
                         }}
@@ -780,7 +780,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                     )
                   })()}
 
-                  <p className="compact-card-subtitle" style={{ fontSize: 12.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.35, whiteSpace: 'normal' }}>
+                  <p className="compact-card-subtitle" style={{ fontSize: 11.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.3, whiteSpace: 'normal' }}>
                     {saudeMetrics.description}
                   </p>
                 </div>

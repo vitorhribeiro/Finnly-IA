@@ -724,29 +724,29 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
             
             {/* Body */}
-            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Top Section: Gauge + Badge/Description */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 {/* Circular Gauge */}
-                <div style={{ width: 80, height: 80, position: 'relative', flexShrink: 0 }}>
-                  <svg viewBox="0 0 80 80" style={{ width: 80, height: 80, transform: 'rotate(-90deg)' }}>
-                    <circle cx="40" cy="40" r="32" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
+                <div style={{ width: 56, height: 56, position: 'relative', flexShrink: 0 }}>
+                  <svg viewBox="0 0 56 56" style={{ width: 56, height: 56, transform: 'rotate(-90deg)' }}>
+                    <circle cx="28" cy="28" r="23" fill="none" stroke="var(--surface-2)" strokeWidth="4.5" />
                     <circle 
-                      cx="40" cy="40" r="32" fill="none" 
-                      stroke={strokeColor} strokeWidth="5.5" 
-                      strokeDasharray="201.06"
-                      strokeDashoffset={`${2 * Math.PI * 32 * (1 - saudeMetrics.score / 100)}`}
+                      cx="28" cy="28" r="23" fill="none" 
+                      stroke={strokeColor} strokeWidth="4.5" 
+                      strokeDasharray="144.51"
+                      strokeDashoffset={`${2 * Math.PI * 23 * (1 - saudeMetrics.score / 100)}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
-                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 22, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
-                    <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginTop: 1 }}>/100</span>
+                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 16, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
+                    <span style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, marginTop: 0.5 }}>/100</span>
                   </div>
                 </div>
 
                 {/* Status Badge + Description */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                   {/* Status Badge */}
                   {(() => {
                     const getBadgeDetails = (status: string) => {
@@ -755,7 +755,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'SAUDÁVEL',
                           bg: 'rgba(40,167,69,0.08)',
                           color: 'var(--green)',
-                          icon: <CheckCircle2 size={10} />
+                          icon: <CheckCircle2 size={8} />
                         }
                       }
                       if (status === 'light_attention') {
@@ -763,7 +763,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'ATENÇÃO LEVE',
                           bg: 'rgba(255,179,0,0.08)',
                           color: '#A06E00',
-                          icon: <AlertTriangle size={10} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       if (status === 'attention') {
@@ -771,7 +771,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'ATENÇÃO MODERADA',
                           bg: 'rgba(255,179,0,0.08)',
                           color: '#A06E00',
-                          icon: <AlertTriangle size={10} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       if (status === 'critical') {
@@ -779,29 +779,29 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           text: 'CRÍTICO',
                           bg: 'rgba(239,68,68,0.08)',
                           color: 'var(--neg)',
-                          icon: <AlertTriangle size={10} />
+                          icon: <AlertTriangle size={8} />
                         }
                       }
                       return {
                         text: 'SEM DADOS',
                         bg: 'var(--surface-2)',
                         color: 'var(--muted)',
-                        icon: <Info size={10} />
+                        icon: <Info size={8} />
                       }
                     }
                     const badge = getBadgeDetails(saudeMetrics.status)
                     return (
                       <span 
                         style={{ 
-                          fontSize: 9, 
-                          padding: '4px 8px', 
-                          borderRadius: 8, 
+                          fontSize: 8, 
+                          padding: '2px 6px', 
+                          borderRadius: 6, 
                           fontWeight: 800, 
                           background: badge.bg, 
                           color: badge.color,
                           display: 'inline-flex', 
                           alignItems: 'center', 
-                          gap: 4, 
+                          gap: 3, 
                           letterSpacing: '0.05em',
                           alignSelf: 'flex-start'
                         }}
@@ -812,14 +812,14 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                     )
                   })()}
 
-                  <p className="compact-card-subtitle" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.4, whiteSpace: 'normal' }}>
+                  <p className="compact-card-subtitle" style={{ fontSize: 12, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.3, whiteSpace: 'normal' }}>
                     {saudeMetrics.description}
                   </p>
                 </div>
               </div>
 
               {/* Bottom Section: 3 Indicators */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {/* Previsibilidade */}
                 {(() => {
                   const level = saudeMetrics.indicators.predictability.level
@@ -829,13 +829,13 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                   const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
                   const text = isGood ? 'alta' : isMedium ? 'média' : 'baixa'
                   return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 8, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                       <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {isGood ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                        {isGood ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Previsibilidade</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Previsibilidade</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
                       </div>
                     </div>
                   )
@@ -850,13 +850,13 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                   const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
                   const text = isGood ? 'baixa' : isMedium ? 'moderada' : 'alta'
                   return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 8, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                       <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Users size={12} />
+                        <Users size={10} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Concentração</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Concentração</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
                       </div>
                     </div>
                   )
@@ -871,13 +871,13 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                   const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
                   const text = isGood ? 'controlados' : isMedium ? 'leves' : 'graves'
                   return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 12, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 8, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                       <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <CheckCircle2 size={12} />
+                        <CheckCircle2 size={10} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Atrasos</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Atrasos</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
                       </div>
                     </div>
                   )

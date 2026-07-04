@@ -55,6 +55,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [showIncomeModal, setShowIncomeModal] = useState(false)
   const [editIncome, setEditIncome] = useState<Income | null>(null)
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+
   const [isPending, startTransition] = useTransition()
 
   async function load() {
@@ -73,6 +76,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   useEffect(() => {
     load()
   }, [])
+
+  // Reset page when filters or selection changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedMonth, searchQuery, filterState])
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -336,6 +344,18 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
   const activeFilterCount = Object.values(filterState).filter(v => v && v !== 'all' && v !== 'global' && v !== 'newest' && (!Array.isArray(v) || v.length > 0)).length
 
+  // Pagination calculations
+  const ITEMS_PER_PAGE = 7
+  const totalItems = filteredIncomes.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const activePage = Math.min(currentPage, totalPages)
+
+  const paginatedIncomes = useMemo(() => {
+    const start = (activePage - 1) * ITEMS_PER_PAGE
+    const end = start + ITEMS_PER_PAGE
+    return filteredIncomes.slice(start, end)
+  }, [filteredIncomes, activePage])
+
   return (
     <div className="fd-stack fade-up" style={{ gap: 16 }}>
       <div className="topbar-inline" style={{ marginBottom: 8 }}>
@@ -369,7 +389,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
       {/* --- PRIMEIRA DOBRA: GRID PRINCIPAL --- */}
       <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
-        <div className="receitas-main-col">
+        <div className="receitas-main-col" style={{ height: '100%' }}>
       <section id="detalhamento-entradas" className="card fade-up" style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -472,7 +492,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           )}
         </div>
         
-        <div style={{ padding: '0 20px 20px 20px' }}>
+        <div style={{ padding: '0 20px', flex: 1, overflowY: 'auto' }}>
           {loading ? (
             <p className="empty-msg" style={{ padding: '30px 0', fontSize: 13 }}>Carregando...</p>
           ) : filteredIncomes.length === 0 ? (
@@ -483,7 +503,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
           ) : (
             <div style={{ marginTop: 12 }}>
-              {filteredIncomes.map(item => {
+              {paginatedIncomes.map(item => {
                 const cat = categories.find(c => c.name === item.category)
                 const catColor = cat?.color ?? '#90A4AE'
                 return (
@@ -560,6 +580,36 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
           )}
         </div>
+
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'rgba(0,0,0,0.01)' }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
+              Mostrando {Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(totalItems, activePage * ITEMS_PER_PAGE)} de {totalItems}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button 
+                className="icon-btn" 
+                disabled={activePage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                style={{ width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: 'none', cursor: activePage === 1 ? 'not-allowed' : 'pointer', opacity: activePage === 1 ? 0.5 : 1 }}
+              >
+                <ChevronLeft size={14} color="var(--ink)" />
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--teal-900)', minWidth: 60, textAlign: 'center' }}>
+                {activePage} / {totalPages}
+              </span>
+              <button 
+                className="icon-btn" 
+                disabled={activePage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                style={{ width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: 'none', cursor: activePage === totalPages ? 'not-allowed' : 'pointer', opacity: activePage === totalPages ? 0.5 : 1 }}
+              >
+                <ChevronRight size={14} color="var(--ink)" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
         </div>
         <div className="receitas-rail-col">

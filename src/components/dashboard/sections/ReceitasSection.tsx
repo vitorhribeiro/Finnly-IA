@@ -165,11 +165,20 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const pctBar = Math.min(100, Math.max(0, pctRealizacaoRaw))
   const faltante = Math.max(0, totalPeriodo - recebido)
 
+  const formatSmartPercentage = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return '0'
+    if (value > 0 && value < 1) {
+      return value.toLocaleString('pt-BR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })
+    }
+    return `${Math.round(value)}`
+  }
+
   const pctRealizacaoDisplayStr = useMemo(() => {
-    if (totalPeriodo <= 0 || recebido <= 0) return '0'
-    if (pctRealizacaoRaw > 0 && pctRealizacaoRaw < 1) return '<1'
-    return `${Math.round(pctRealizacaoRaw)}`
-  }, [totalPeriodo, recebido, pctRealizacaoRaw])
+    return formatSmartPercentage(pctRealizacaoRaw)
+  }, [pctRealizacaoRaw])
 
   const realizacaoState = useMemo(() => {
     if (!hasForecast) {
@@ -237,15 +246,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const propPendente = totalPeriodo > 0 ? (pendente / totalPeriodo) * 100 : 0
   const propAtrasado = totalPeriodo > 0 ? (atrasado / totalPeriodo) * 100 : 0
 
-  const getPropDisplay = (prop: number) => {
-    if (prop === 0) return '0'
-    if (prop > 0 && prop < 1) return '<1'
-    return `${Math.round(prop)}`
-  }
-
-  const pctRecebido = getPropDisplay(propRecebido)
-  const pctPendente = getPropDisplay(propPendente)
-  const pctAtrasado = getPropDisplay(propAtrasado)
+  const pctRecebido = formatSmartPercentage(propRecebido)
+  const pctPendente = formatSmartPercentage(propPendente)
+  const pctAtrasado = formatSmartPercentage(propAtrasado)
 
   const periodoState = useMemo(() => {
     if (totalPeriodo <= 0) {

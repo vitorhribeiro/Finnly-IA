@@ -3400,7 +3400,7 @@ input:focus, select:focus, textarea:focus {
 /* ============================================================ RECEITAS LAYOUT REORG */
 .receitas-primary-grid {
   display: grid;
-  grid-template-columns: 8fr 4fr;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 20px;
   align-items: start;
 }
@@ -3428,19 +3428,461 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* Make cards compact when inside the rail */
-.receitas-rail-col .premium-periodo-card,
-.receitas-rail-col .premium-realizacao-card,
-.receitas-rail-col .premium-health-card {
+.receitas-rail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.compact-insight-card {
+  background: white;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  min-height: 140px;
+  max-height: 180px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+  position: relative;
 }
 
-.receitas-rail-col .premium-periodo-value,
-.receitas-rail-col .premium-realizacao-percentage {
-  font-size: 26px;
+.compact-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.receitas-rail-col .premium-periodo-grid-item,
-.receitas-rail-col .premium-realizacao-stat-item {
-  padding: 8px 10px;
+.compact-card-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink); /* Mais escuro e visível */
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
+
+.compact-card-icon {
+  color: var(--teal);
+}
+
+.compact-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.compact-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  display: flex;
+  overflow: hidden;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.compact-card-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.compact-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.compact-health-score {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compact-health-value {
+  position: absolute;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.compact-card-action {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: opacity 0.2s;
+}
+
+.compact-card-action:hover {
+  opacity: 0.8;
+}
+
+/* ============================================================ PREMIUM REFINEMENTS */
+.period-card {
+  background: #FCFAF7; /* Creme/off-white background */
+  border: 1px solid rgba(13, 61, 55, 0.08);
+  padding: 24px 24px 22px 24px; /* Mais respiro */
+  min-height: 165px;
+  max-height: none; /* Removendo max-height estrito para evitar que o footer vaze */
+}
+
+.compact-insight-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.premium-bar {
+  height: 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  background: rgba(13, 61, 55, 0.06);
+}
+
+.period-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  transform: translateY(-1px);
+}
+
+.legend-sep {
+  color: var(--line-strong);
+  margin: 0 2px;
+}
+
+.premium-action {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal-900);
+  background: transparent;
+  padding: 0;
+  margin-top: auto;
+  transition: all 0.2s ease;
+}
+
+.premium-action:hover {
+  opacity: 1;
+  color: var(--teal);
+}
+
+.premium-action .action-icon-wrapper {
+  background: rgba(1, 88, 76, 0.1);
+  color: var(--teal);
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  transition: all 0.2s ease;
+}
+
+.premium-action:hover .action-icon-wrapper {
+  background: rgba(1, 88, 76, 0.2); /* Fundo um pouco mais forte no hover */
+  color: var(--teal-900);
+  transform: translateX(3px); /* Leve deslocamento da seta */
+}
+
+/* ============================================================ INCOME INSIGHT DRAWER */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: flex-end;
+  z-index: 9999;
+}
+
+.drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.insight-drawer {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background: var(--bg);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.1);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.insight-drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  color: var(--muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+}
+
+.drawer-close-btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.insight-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.insight-drawer-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.insight-drawer-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 4px 0;
+}
+
+.insight-drawer-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .insight-drawer {
+    max-width: 100%;
+    height: 85vh;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+    margin-top: auto;
+  }
+  
+  .insight-drawer.open {
+    transform: translateY(0);
+  }
+
+  .drawer-overlay {
+    align-items: flex-end;
+  }
+}
+
+/* ============================================================ DRAWER PREMIUM (RECEITAS DO PERÍODO) */
+.drawer-content-section {
+  padding: 32px 32px 0 32px;
+}
+.drawer-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+.drawer-hero-box {
+  border-radius: 16px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.02);
+}
+.drawer-mini-card {
+  background: white;
+  padding: 14px 12px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.drawer-metric-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.drawer-metric-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+.drawer-metric-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--teal);
+  background: rgba(1, 88, 76, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-self: flex-start;
+}
+.upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.upcoming-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+.upcoming-item:hover {
+  border-color: rgba(1, 88, 76, 0.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+.upcoming-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.upcoming-info {
+  flex: 1;
+  min-width: 0;
+}
+.upcoming-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.upcoming-sub {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.upcoming-actions {
+  display: flex;
+  gap: 6px;
+}
+.upcoming-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.check-btn:hover {
+  background: rgba(40, 167, 69, 0.15);
+  color: var(--green);
+}
+.edit-btn:hover {
+  background: rgba(1, 88, 76, 0.15);
+  color: var(--teal);
+}
+.upcoming-empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.category-ranking-item {
+  display: flex;
+  flex-direction: column;
+}
+.insight-pill {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(1, 88, 76, 0.04);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--teal-900);
+  line-height: 1.4;
+}
+.drawer-fixed-footer {
+  padding: 24px 32px;
+  background: var(--bg);
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  gap: 12px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.02);
+  margin-top: auto;
+}
+

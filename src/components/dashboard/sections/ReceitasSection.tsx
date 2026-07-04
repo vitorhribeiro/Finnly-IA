@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
-  ArrowDown, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy,
+  ArrowDown, ArrowRight, Search, Filter, CalendarClock, Tag, CheckCircle2, Sparkles, AlertCircle, Percent, PieChart, Copy,
   HeartPulse, ShieldCheck, DollarSign, Wallet
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
@@ -15,6 +15,7 @@ import { getAccounts } from '@/app/dashboard/actions/accounts'
 import type { Income, IncomeCategory, Account } from '@/types/database'
 import { PremiumIncomeModal } from './PremiumIncomeModal'
 import TransactionsFilterDrawer, { FilterState, defaultFilterState } from '@/components/dashboard/filters/TransactionsFilterDrawer'
+import { IncomeInsightDrawer } from '@/components/dashboard/drawers/IncomeInsightDrawer'
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -45,6 +46,10 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Insight Drawer
+  const [insightDrawerOpen, setInsightDrawerOpen] = useState(false)
+  const [insightDrawerType, setInsightDrawerType] = useState<'period' | 'realization' | 'health' | null>(null)
 
   // Modals
   const [showIncomeModal, setShowIncomeModal] = useState(false)
@@ -80,6 +85,30 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     setShowIncomeModal(false)
     setEditIncome(null)
     load()
+  }
+
+  function handleToggleStatus(income: Income) {
+    startTransition(async () => {
+      try {
+        const fd = new FormData()
+        fd.append('amount', String(income.amount))
+        fd.append('category', income.category)
+        if (income.description) fd.append('description', income.description)
+        fd.append('date', income.date)
+        fd.append('is_recurring', String(income.is_recurring))
+        if (income.notes) fd.append('notes', income.notes)
+        if (income.account_id) fd.append('account_id', income.account_id)
+        fd.append('payment_status', 'true')
+        if (income.income_type) fd.append('income_type', income.income_type)
+        if (income.income_method) fd.append('income_method', income.income_method)
+        if (income.tags && income.tags.length > 0) fd.append('tags', income.tags.join(','))
+        
+        await updateIncome(income.id, fd)
+        await load()
+      } catch (err) {
+        console.error(err)
+      }
+    })
   }
 
   // --- KPIs and Metrics (Based on Global selectedMonth) ---
@@ -560,173 +589,162 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       </section>
         </div>
         <div className="receitas-rail-col">
-          <div className="premium-periodo-card">
-            <div className="premium-periodo-header">
-              <div className="premium-periodo-title-container">
-                <div className="premium-periodo-icon-wrapper">
-                  <Wallet size={16} />
+          {/* Card Compacto: Receitas do Período */}
+          <div className="compact-insight-card period-card">
+            <div className="compact-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 14, background: 'rgba(1, 88, 76, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Wallet size={14} className="compact-card-icon" />
                 </div>
-                <div className="premium-periodo-divider" />
-                <span className="premium-periodo-title">RECEITAS DO PERÍODO</span>
+                <span className="compact-card-title">RECEITAS DO PERÍODO</span>
               </div>
-              <div className="premium-periodo-info">
-                <CardInfoTooltip content="Mostra o total de receitas previstas no período, separando o que já foi recebido, pendente e atrasado." />
-              </div>
+              <CardInfoTooltip content="Mostra o total de receitas previstas no período." />
             </div>
-
-            <div className="premium-periodo-meta-container">
-              <span className="premium-periodo-subtitle">Total previsto no período</span>
-              <div className="premium-periodo-value-container">
-                <span className="premium-periodo-currency">R$</span>
-                <span className={`premium-periodo-value tabnums${hidden ? ' priv' : ''}`}>
-                  {brl(totalPeriodo)}
-                </span>
+            
+            <div className="compact-card-body">
+              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 30, fontWeight: 800, color: 'var(--teal-900)', letterSpacing: '-0.5px', marginBottom: 4 }}>
+                R$ {brl(totalPeriodo)}
               </div>
-            </div>
-
-            <div className="premium-periodo-progress-wrapper">
-              {propRecebido > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propRecebido}%`, backgroundColor: 'var(--green)', minWidth: '4px' }} 
-                />
-              )}
-              {propPendente > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propPendente}%`, backgroundColor: 'var(--gold)', minWidth: '4px' }} 
-                />
-              )}
-              {propAtrasado > 0 && (
-                <div 
-                  className="premium-periodo-progress-segment" 
-                  style={{ width: `${propAtrasado}%`, backgroundColor: 'var(--neg)', minWidth: '4px' }} 
-                />
-              )}
-            </div>
-
-            {/* Micro resumo */}
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginTop: 4 }}>
-              {totalPeriodo <= 0 ? (
-                'Cadastre receitas para acompanhar o período.'
-              ) : recebido >= totalPeriodo && totalPeriodo > 0 ? (
-                'Receita totalmente recebida neste período.'
-              ) : (
-                <>
-                  <span className={hidden ? 'priv' : ''}>R$ {brl(recebido)} recebido</span>
-                  {' · '}
-                  <span className={hidden ? 'priv' : ''}>R$ {brl(pendente)} pendente</span>
-                  {atrasado > 0 && (
-                    <>
-                      {' · '}
-                      <span className={hidden ? 'priv' : ''}>R$ {brl(atrasado)} atrasado</span>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          <div className="premium-realizacao-card">
-            <div className="premium-realizacao-header">
-              <div className="premium-realizacao-title-container">
-                <div className="premium-realizacao-icon-wrapper">
-                  <Percent size={16} />
-                </div>
-                <div className="premium-realizacao-divider" />
-                <span className="premium-realizacao-title">REALIZAÇÃO DO MÊS</span>
+              
+              <div className="compact-progress-bar premium-bar">
+                {propRecebido > 0 && <div style={{ width: `max(5px, ${propRecebido}%)`, backgroundColor: 'var(--green)' }} />}
+                {propPendente > 0 && <div style={{ width: `max(5px, ${propPendente}%)`, backgroundColor: 'var(--gold)' }} />}
+                {propAtrasado > 0 && <div style={{ width: `max(5px, ${propAtrasado}%)`, backgroundColor: 'var(--neg)' }} />}
               </div>
-              <div className="premium-realizacao-info">
-                <CardInfoTooltip content="Compara o valor já recebido com a receita prevista para o mês." />
-              </div>
-            </div>
-
-            <div className="premium-realizacao-body">
-              <div className="premium-realizacao-score-row">
-                <span className={`premium-realizacao-percentage tabnums${hidden ? ' priv' : ''}`}>
-                  {pctRealizacaoDisplayStr}%
-                </span>
-                <span className={`premium-realizacao-badge ${realizacaoState.badgeClass}`}>
-                  {realizacaoState.status === 'completed' && <CheckCircle2 size={12} />}
-                  {realizacaoState.badgeText}
-                </span>
-              </div>
-
-              <div className="premium-realizacao-progress-wrapper">
-                <div 
-                  className="premium-realizacao-progress-fill" 
-                  style={{ 
-                    width: `${pctBar}%`, 
-                    backgroundColor: realizacaoState.color 
-                  }} 
-                />
-                {pctBar >= 100 && (
-                  <div className="premium-realizacao-progress-check">
-                    <CheckCircle2 size={10} color="white" />
-                  </div>
+              
+              <div className="compact-card-subtitle period-legend">
+                {totalPeriodo <= 0 ? (
+                  <span>Nenhuma receita prevista</span>
+                ) : (
+                  <>
+                    <span className={hidden ? 'priv' : ''}>
+                      <span className="legend-dot" style={{ background: 'var(--green)' }} /> R$ {brl(recebido)} recebido
+                    </span>
+                    <span className="legend-sep">·</span>
+                    <span className={hidden ? 'priv' : ''}>
+                      <span className="legend-dot" style={{ background: 'var(--gold)' }} /> R$ {brl(pendente)} pendente
+                    </span>
+                    {atrasado > 0 && (
+                      <>
+                        <span className="legend-sep">·</span>
+                        <span className={hidden ? 'priv' : ''} style={{ color: 'var(--neg)' }}>
+                          <span className="legend-dot" style={{ background: 'var(--neg)' }} /> R$ {brl(atrasado)} atrasado
+                        </span>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
-
-              <p className="premium-realizacao-desc">
-                {realizacaoState.text}
-              </p>
             </div>
-
-            {totalPeriodo > 0 && recebido > 0 && (
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginTop: 8 }}>
-                <span className={hidden ? 'priv' : ''}>R$ {brl(recebido)}</span> de <span className={hidden ? 'priv' : ''}>R$ {brl(totalPeriodo)}</span> recebidos
-              </div>
-            )}
+            
+            <div className="compact-insight-footer">
+              <button 
+                className="compact-card-action premium-action"
+                style={{ margin: 0 }}
+                onClick={() => { setInsightDrawerType('period'); setInsightDrawerOpen(true); }}
+                aria-label="Ver detalhes de Receitas do Período"
+              >
+                Ver mais <div className="action-icon-wrapper"><ChevronRight size={12} /></div>
+              </button>
+            </div>
           </div>
-          <div className="premium-health-card">
-            <div className="premium-health-header">
-              <div className="premium-health-title-container">
-                <div className="premium-health-icon-wrapper">
-                  <HeartPulse size={16} />
+
+          {/* Card Compacto: Realização do Mês */}
+          <div className="compact-insight-card premium-card-insight">
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(245,166,35,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Percent size={16} style={{ color: 'var(--orange)' }} />
                 </div>
-                <div className="premium-health-divider" />
-                <span className="premium-health-title">SAÚDE DA RECEITA</span>
+                <span className="compact-card-title">REALIZAÇÃO DO MÊS</span>
               </div>
-              <div className="premium-health-info">
-                <CardInfoTooltip content="Considera atrasos, previsibilidade, concentração das fontes e variação histórica." />
+              <CardInfoTooltip content="Progresso do recebimento frente ao previsto." />
+            </div>
+
+            {/* Middle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: -2 }}>
+              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 28, fontWeight: 800, color: 'var(--teal-900)', lineHeight: 1, letterSpacing: '-0.5px' }}>
+                {pctRealizacaoDisplayStr}%
+              </div>
+              <div style={{ background: realizacaoState.color === 'var(--neg)' ? 'rgba(239,68,68,0.1)' : realizacaoState.color === 'var(--green)' ? 'rgba(34,197,94,0.1)' : 'rgba(245,166,35,0.1)', color: realizacaoState.color, padding: '2px 8px', borderRadius: 12, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase' }}>
+                {realizacaoState.badgeText === 'Abaixo do esperado' ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
+                {realizacaoState.badgeText}
               </div>
             </div>
 
-            <div className="premium-health-body">
-              <div className="premium-health-score-container">
-                <svg viewBox="0 0 100 100" className="premium-health-score-svg">
-                  <circle cx="50" cy="50" r={HEALTH_SCORE_RADIUS} className="premium-health-score-bg-circle" />
-                  <circle 
-                    cx="50" 
-                    cy="50" 
-                    r={HEALTH_SCORE_RADIUS} 
-                    className="premium-health-score-fill-circle" 
-                    style={{ 
-                      stroke: strokeColor,
-                      strokeDasharray: `${circumference}`, 
-                      strokeDashoffset: `${circumference * (1 - saudeMetrics.score / 100)}` 
-                    }} 
-                  />
-                  {saudeMetrics.score > 0 && (
-                    <circle cx={dotX} cy={dotY} r="4" fill="#FCFAF7" stroke={strokeColor} strokeWidth="2" />
-                  )}
-                </svg>
-                <div className="premium-health-score-value-wrapper">
-                  <span className={`premium-health-score-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
-                  <span className="premium-health-score-total">/100</span>
-                </div>
-              </div>
+            {/* Bar */}
+            <div style={{ width: '100%', height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `max(4px, ${pctBar}%)`, height: '100%', background: realizacaoState.color, borderRadius: 3 }} />
+            </div>
 
-              <div className="premium-health-status-container">
-                <span className={`premium-health-badge ${getBadgeClass(saudeMetrics.status)}`}>
-                  <ShieldCheck size={12} />
+            {/* Subtitle */}
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--teal-900)' }} className={hidden ? 'priv' : ''}>R$ {brl(recebido)}</strong> de <strong style={{ color: 'var(--teal-900)' }} className={hidden ? 'priv' : ''}>R$ {brl(totalPeriodo)}</strong> recebidos
+            </div>
+
+            {/* Footer */}
+            <div className="compact-insight-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 'auto' }}>
+              {faltante > 0 ? (
+                <div style={{ background: 'rgba(245,166,35,0.1)', color: 'var(--orange-ink)', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertCircle size={12} style={{ color: 'var(--orange)' }} /> Faltam <span className={hidden ? 'priv' : ''}>R$ {brl(faltante)}</span>
+                </div>
+              ) : (
+                <div />
+              )}
+              <button 
+                className="compact-card-action premium-action"
+                style={{ margin: 0 }}
+                onClick={() => { setInsightDrawerType('realization'); setInsightDrawerOpen(true); }}
+                aria-label="Ver detalhes de Realização do Mês"
+              >
+                Ver mais <div className="action-icon-wrapper"><ChevronRight size={12} /></div>
+              </button>
+            </div>
+          </div>
+
+          {/* Card Compacto: Saúde da Receita */}
+          <div className="compact-insight-card">
+            <div className="compact-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HeartPulse size={14} className="compact-card-icon" style={{ color: 'var(--ink)' }} />
+                <span className="compact-card-title">SAÚDE DA RECEITA</span>
+              </div>
+              <CardInfoTooltip content="Qualidade geral e previsibilidade das entradas." />
+            </div>
+            
+            <div className="compact-card-body" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="compact-health-score">
+                <svg viewBox="0 0 60 60" style={{ width: 48, height: 48, transform: 'rotate(-90deg)' }}>
+                  <circle cx="30" cy="30" r="22" fill="none" stroke="var(--surface-2)" strokeWidth="4" />
+                  <circle 
+                    cx="30" cy="30" r="22" fill="none" 
+                    stroke={strokeColor} strokeWidth="4" 
+                    strokeDasharray={`${2 * Math.PI * 22}`}
+                    strokeDashoffset={`${2 * Math.PI * 22 * (1 - saudeMetrics.score / 100)}`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className={`compact-health-value tabnums${hidden ? ' priv' : ''}`}>{saudeMetrics.score}</span>
+              </div>
+              
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span className={`compact-status-badge ${getBadgeClass(saudeMetrics.status)}`} style={{ marginBottom: 4, display: 'inline-flex' }}>
                   {saudeMetrics.label}
                 </span>
-                <p className="premium-health-desc">
-                  {saudeMetrics.description}
-                </p>
+                <div className="compact-card-subtitle" style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>
+                  {saudeMetrics.indicators.predictability.level === 'good' ? 'Previsibilidade alta' : 'Previsibilidade baixa'} · {saudeMetrics.indicators.diversification.level === 'good' ? 'Diversificada' : 'Concentrada'}
+                </div>
               </div>
             </div>
-
+            
+            <button 
+              className="compact-card-action"
+              onClick={() => { setInsightDrawerType('health'); setInsightDrawerOpen(true); }}
+              aria-label="Ver detalhes de Saúde da Receita"
+            >
+              Ver mais <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -1045,6 +1063,20 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           onRequestNewCategory={() => {}}
         />
       )}
+
+      <IncomeInsightDrawer 
+        isOpen={insightDrawerOpen} 
+        onClose={() => setInsightDrawerOpen(false)}
+        type={insightDrawerType}
+        data={{
+          period: { totalPeriodo, recebido, pendente, atrasado, propRecebido, propPendente, propAtrasado, periodoState, hidden, currentIncomes, categories },
+          realization: { pctRealizacaoDisplayStr, realizacaoState, pctBar, recebido, totalPeriodo, faltante, hidden },
+          health: { saudeMetrics, hidden }
+        }}
+        onEdit={(inc) => { setEditIncome(inc); setInsightDrawerOpen(false); }}
+        onToggle={handleToggleStatus}
+        onViewAll={() => { setInsightDrawerOpen(false); window.scrollTo({ top: 400, behavior: 'smooth' }) }}
+      />
     </div>
   )
 }

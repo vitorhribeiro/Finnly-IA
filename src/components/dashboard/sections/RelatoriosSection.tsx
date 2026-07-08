@@ -122,11 +122,7 @@ export function RelatoriosSection({ dashboardData, hidden }: RelatoriosSectionPr
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 60 }}>
       
       {/* HEADER SECTION */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h2 style={{ fontSize: 24, fontWeight: 900, color: 'var(--teal-900)', margin: 0 }}>Análise & Relatórios</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>Acompanhe sua evolução patrimonial e a eficiência dos seus gastos</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
 
         {/* CONTROLES DE ABAS */}
         <div style={{ display: 'flex', background: 'var(--surface-2)', padding: 4, borderRadius: 12, border: '1px solid var(--border)' }}>

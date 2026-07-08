@@ -146,11 +146,7 @@ export function CartoesSection({ hidden }: { hidden: boolean }) {
 
   return (
     <div className="fd-stack fade-up">
-      <div className="topbar-inline">
-        <div>
-          <h2 className="section-title">Meus Cartões</h2>
-          <p className="section-sub">Acompanhe limites, vencimentos e faturas em aberto</p>
-        </div>
+      <div className="topbar-inline" style={{ justifyContent: 'flex-end' }}>
         <button className="btn-primary" onClick={() => {
           setName('')
           setLimit('')

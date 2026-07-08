@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
   ArrowDown, Search, Filter, CalendarClock, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
-  HeartPulse, Wallet
+  HeartPulse, Wallet, MoreHorizontal, Trash2, Check
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
@@ -32,6 +32,63 @@ function getMonthLabel(ym: string) {
   return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${y}`
 }
 
+function formatShortDate(dStr: string) {
+  if (!dStr) return ''
+  const cleanStr = dStr.slice(0, 10)
+  const [y, m, d] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, d)
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const month = dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+  return `${day} ${month}`
+}
+
+function formatMainDate(dStr: string) {
+  if (!dStr) return ''
+  const cleanStr = dStr.slice(0, 10)
+  const [y, m, d] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, d)
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const month = dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+  const year = dateObj.getFullYear()
+  return `${day} ${month}. ${year}`
+}
+
+function formatGroupDate(dStr: string) {
+  if (!dStr) return ''
+  const cleanStr = dStr.slice(0, 10)
+  const [y, m, d] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, d)
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const month = dateObj.toLocaleDateString('pt-BR', { month: 'long' })
+  const year = dateObj.getFullYear()
+  return `${day} de ${month} de ${year}`
+}
+
+function getGroupSummary(items: Income[]) {
+  let paid = 0
+  let pending = 0
+  let overdue = 0
+  items.forEach(i => {
+    const amt = Number(i.amount)
+    const status = getTransactionStatus(i.payment_status, i.date)
+    if (status === 'paid') paid += amt
+    else if (status === 'overdue') overdue += amt
+    else pending += amt
+  })
+
+  const parts = []
+  if (paid > 0) parts.push(`R$ ${brl(paid)} recebido`)
+  if (pending > 0) parts.push(`R$ ${brl(pending)} pendente`)
+  if (overdue > 0) parts.push(`R$ ${brl(overdue)} atrasado`)
+  
+  if (parts.length === 1) {
+    return parts[0] + ' neste dia'
+  }
+  
+  const total = paid + pending + overdue
+  return `R$ ${brl(total)} em entradas`
+}
+
 export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (seed?: string) => void }) {
   const [allIncomes, setAllIncomes] = useState<Income[]>([])
   const [categories, setCategories] = useState<IncomeCategory[]>([])
@@ -46,6 +103,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusTab, setStatusTab] = useState<'all' | 'received' | 'pending' | 'overdue'>('all')
 
   // Insight Drawer
   const [insightDrawerOpen, setInsightDrawerOpen] = useState(false)
@@ -57,6 +115,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
+
+  // State to track item being toggled
+  const [savingItemId, setSavingItemId] = useState<string | null>(null)
+  // State to track active menu row
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
 
@@ -78,11 +141,18 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     load()
   }, [])
 
+  // Close actions menu when clicking outside
+  useEffect(() => {
+    const handleGlobalClick = () => setActiveMenuId(null)
+    window.addEventListener('click', handleGlobalClick)
+    return () => window.removeEventListener('click', handleGlobalClick)
+  }, [])
+
   // Reset page when filters or selection changes
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1)
-  }, [selectedMonth, searchQuery, filterState])
+  }, [selectedMonth, searchQuery, filterState, statusTab])
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -104,6 +174,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       setInsightDrawerOpen(false)
       return
     }
+    setSavingItemId(income.id)
     startTransition(async () => {
       try {
         const fd = new FormData()
@@ -123,6 +194,36 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         await load()
       } catch (err) {
         console.error(err)
+      } finally {
+        setSavingItemId(null)
+      }
+    })
+  }
+
+  function handleToggleStatusToUnpaid(income: Income) {
+    if (!confirm("Tem certeza que deseja desmarcar esta receita como recebida?")) return
+    setSavingItemId(income.id)
+    startTransition(async () => {
+      try {
+        const fd = new FormData()
+        fd.append('amount', String(income.amount))
+        fd.append('category', income.category)
+        if (income.description) fd.append('description', income.description)
+        fd.append('date', income.date)
+        fd.append('is_recurring', String(income.is_recurring))
+        if (income.notes) fd.append('notes', income.notes)
+        if (income.account_id) fd.append('account_id', income.account_id)
+        fd.append('payment_status', 'false')
+        if (income.income_type) fd.append('income_type', income.income_type)
+        if (income.income_method) fd.append('income_method', income.income_method)
+        if (income.tags && income.tags.length > 0) fd.append('tags', income.tags.join(','))
+        
+        await updateIncome(income.id, fd)
+        await load()
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setSavingItemId(null)
       }
     })
   }
@@ -323,16 +424,46 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
       }
       
-      if (filterState.categoryId && filterState.categoryId !== 'all' && inc.category !== filterState.categoryId) return false
-      if (filterState.paymentMethod === 'received' && !inc.payment_status) return false
-      if (filterState.paymentMethod === 'pending' && inc.payment_status) return false
+      // 1. Category Filter (match UUID in filterState.categoryId to categories name)
+      if (filterState.categoryId && filterState.categoryId !== 'all') {
+        const cat = categories.find(c => c.id === filterState.categoryId)
+        if (cat && inc.category !== cat.name) return false
+      }
+
+      // 2. Account Filter
+      if (filterState.accountId && filterState.accountId !== 'all') {
+        if (inc.account_id !== filterState.accountId) return false
+      }
+
+      // 3. Status Tab Filter (from Quick Toolbar Tabs)
+      const status = getTransactionStatus(inc.payment_status, inc.date)
+      if (statusTab === 'received' && status !== 'paid') return false
+      if (statusTab === 'pending' && status !== 'pending') return false
+      if (statusTab === 'overdue' && status !== 'overdue') return false
+
+      // 4. Receipt Method Filter (from Drawer)
+      if (filterState.paymentMethod && filterState.paymentMethod !== 'all') {
+        if (inc.income_method !== filterState.paymentMethod) return false
+      }
+
+      // 5. Type Filter
       if (filterState.transactionType !== 'all' && inc.income_type !== filterState.transactionType) return false
+      
+      // 6. Tags Filter
       if (filterState.tags && filterState.tags.length > 0) {
         const incTags = inc.tags || []
         if (!filterState.tags.every(t => incTags.includes(t))) return false
       }
-      if (filterState.minAmount && Number(inc.amount) < Number(filterState.minAmount)) return false
-      if (filterState.maxAmount && Number(inc.amount) > Number(filterState.maxAmount)) return false
+
+      // 7. Amount Filters (parse Brazilian format)
+      if (filterState.minAmount) {
+        const cleanMin = parseFloat(filterState.minAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMin) && Number(inc.amount) < cleanMin) return false
+      }
+      if (filterState.maxAmount) {
+        const cleanMax = parseFloat(filterState.maxAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMax) && Number(inc.amount) > cleanMax) return false
+      }
 
       return true
     }).sort((a, b) => {
@@ -342,7 +473,20 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       if (filterState.order === 'lowest') return Number(a.amount) - Number(b.amount)
       return 0
     })
-  }, [allIncomes, searchQuery, filterState, selectedMonth])
+  }, [allIncomes, searchQuery, filterState, selectedMonth, statusTab, categories])
+
+  // Get statistics for the filtered entries list
+  const filteredStats = useMemo(() => {
+    let rec = 0, pen = 0, atr = 0
+    filteredIncomes.forEach(i => {
+      const status = getTransactionStatus(i.payment_status, i.date)
+      const amt = Number(i.amount)
+      if (status === 'paid') rec += amt
+      else if (status === 'overdue') atr += amt
+      else pen += amt
+    })
+    return { rec, pen, atr }
+  }, [filteredIncomes])
 
   const activeFilterCount = Object.values(filterState).filter(v => v && v !== 'all' && v !== 'global' && v !== 'newest' && (!Array.isArray(v) || v.length > 0)).length
 
@@ -358,13 +502,23 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return filteredIncomes.slice(start, end)
   }, [filteredIncomes, activePage])
 
+  // Group paginated items by date
+  const groupedIncomes = useMemo(() => {
+    const groups: { date: string; items: Income[] }[] = []
+    paginatedIncomes.forEach(item => {
+      const existing = groups.find(g => g.date === item.date)
+      if (existing) {
+        existing.items.push(item)
+      } else {
+        groups.push({ date: item.date, items: [item] })
+      }
+    })
+    return groups
+  }, [paginatedIncomes])
+
   return (
     <div className="fd-stack fade-up" style={{ gap: 16 }}>
-      <div className="topbar-inline" style={{ marginBottom: 8 }}>
-        <div>
-          <h2 className="section-title">Receitas</h2>
-          <p className="section-sub" style={{ color: 'var(--muted)' }}>Acompanhe suas entradas e projeções</p>
-        </div>
+      <div className="topbar-inline" style={{ marginBottom: 8, justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '4px 8px', borderRadius: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
             <button className="icon-btn" style={{ background: 'transparent' }} onClick={() => {
@@ -396,66 +550,103 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
-              <div className="card-title" style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Detalhamento das Entradas</div>
-              <div className="card-sub" style={{ marginTop: 2, fontSize: 12 }}>
-                {filteredIncomes.length} resultado{filteredIncomes.length !== 1 ? 's' : ''} 
-                {filterState.period !== 'global' && <span style={{ color: 'var(--orange)', fontWeight: 700, marginLeft: 6 }}>· Filtro ativo</span>}
+              <div className="card-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>Detalhamento das Entradas</div>
+              <div className="card-sub" style={{ marginTop: 4, fontSize: 12, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <span>{filteredIncomes.length} resultado{filteredIncomes.length !== 1 ? 's' : ''}</span>
+                {filterState.period !== 'global' && <span style={{ color: 'var(--orange-ink)', fontWeight: 700 }}>· Filtro ativo</span>}
               </div>
             </div>
             {filteredIncomes.length > 0 && (
-              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--teal)', background: 'rgba(1,88,76,0.05)', padding: '4px 10px', borderRadius: 12 }}>
+              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.08)', padding: '6px 14px', borderRadius: 20 }}>
                 R$ {brl(filteredIncomes.reduce((s, i) => s + Number(i.amount), 0))} filtrado
               </div>
             )}
           </div>
           
           <div className="filter-bar" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
-            <div className="search-input" style={{ flex: '1 1 200px', maxWidth: 300, background: 'var(--surface-2)', borderRadius: 8, border: 'none', padding: '6px 12px' }}>
-              <Search size={14} className="search-icon" style={{ color: 'var(--muted)' }} />
+            <div className="search-input" style={{
+              flex: '1 1 200px',
+              maxWidth: 300,
+              background: 'var(--surface-2)',
+              borderRadius: 8,
+              border: '1px solid var(--line-soft)',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <Search size={14} className="search-icon" style={{ color: 'var(--muted)', flexShrink: 0 }} />
               <input
-                placeholder="Buscar receita…"
+                placeholder="Buscar receita..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ background: 'transparent', fontSize: 13 }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: 13,
+                  color: 'var(--ink)',
+                  width: '100%'
+                }}
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, color: 'var(--faint)' }}>
+                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, color: 'var(--muted)' }}>
                   <X size={13} />
                 </button>
               )}
             </div>
 
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }} className="hide-scrollbar">
-              <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'all' ? 'active-chip' : ''}`}
-                style={{ padding: '4px 12px', fontSize: 12, borderRadius: 16, background: filterState.paymentMethod === 'all' ? 'var(--ink)' : 'var(--surface)', color: filterState.paymentMethod === 'all' ? 'white' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'all' })}
-              >
-                Todas
-              </button>
-              <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'received' ? 'active-chip' : ''}`}
-                style={{ padding: '4px 12px', fontSize: 12, borderRadius: 16, background: filterState.paymentMethod === 'received' ? 'rgba(40,167,69,0.1)' : 'var(--surface)', color: filterState.paymentMethod === 'received' ? 'var(--green)' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'received' })}
-              >
-                Recebidas
-              </button>
-              <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'pending' ? 'active-chip' : ''}`}
-                style={{ padding: '4px 12px', fontSize: 12, borderRadius: 16, background: filterState.paymentMethod === 'pending' ? 'rgba(245,124,0,0.1)' : 'var(--surface)', color: filterState.paymentMethod === 'pending' ? 'var(--orange)' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'pending' })}
-              >
-                Pendentes
-              </button>
+              {[
+                { key: 'all', label: 'Todas', activeColor: 'var(--teal-900)' },
+                { key: 'received', label: 'Recebidas', activeColor: 'var(--teal-900)' },
+                { key: 'pending', label: 'Pendentes', activeColor: 'var(--teal-900)' },
+                { key: 'overdue', label: 'Atrasadas', activeColor: 'var(--teal-900)' },
+              ].map(chip => {
+                const isActive = statusTab === chip.key
+                return (
+                  <button
+                    key={chip.key}
+                    className={`btn-ghost ${isActive ? 'active-chip' : ''}`}
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      borderRadius: 16,
+                      background: isActive ? chip.activeColor : 'var(--surface)',
+                      color: isActive ? 'white' : 'var(--muted)',
+                      border: isActive ? `1px solid ${chip.activeColor}` : '1px solid var(--line-soft)',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={() => setStatusTab(chip.key as any)}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
             </div>
             
             <button 
               className="btn-secondary" 
-              style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, background: activeFilterCount > 0 ? 'rgba(1, 88, 76, 0.1)' : 'var(--surface)', color: activeFilterCount > 0 ? 'var(--teal)' : 'var(--ink)', marginLeft: 'auto' }}
+              style={{
+                padding: '8px 14px',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: activeFilterCount > 0 ? 'rgba(1, 88, 76, 0.08)' : 'var(--surface)',
+                color: activeFilterCount > 0 ? 'var(--teal-900)' : 'var(--ink)',
+                border: '1px solid var(--line-soft)',
+                cursor: 'pointer',
+                marginLeft: 'auto'
+              }}
               onClick={() => setIsDrawerOpen(true)}
             >
-              <Filter size={14} /> Filtros
-              {activeFilterCount > 0 && <div style={{ background: 'var(--teal)', color: 'white', borderRadius: 8, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>{activeFilterCount}</div>}
+              <Filter size={14} /> Filtros {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
             </button>
             
             <TransactionsFilterDrawer 
@@ -465,7 +656,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               activeFilters={filterState}
               onApply={setFilterState}
               categories={categories}
-              accounts={[]}
+              accounts={accounts}
               cards={[]}
             />
           </div>
@@ -479,17 +670,6 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               {filterState.tags && filterState.tags.length > 0 && <div className="filter-pill">Tags</div>}
               {(filterState.minAmount || filterState.maxAmount) && <div className="filter-pill">Valor</div>}
               <button style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--orange)', cursor: 'pointer', fontWeight: 600, padding: '2px 6px' }} onClick={() => setFilterState(defaultFilterState)}>Limpar</button>
-              
-              <style jsx>{`
-                .filter-pill {
-                  font-size: 10px;
-                  font-weight: 600;
-                  background: rgba(1,88,76,0.08);
-                  color: var(--teal-900);
-                  padding: 2px 8px;
-                  border-radius: 8px;
-                }
-              `}</style>
             </div>
           )}
         </div>
@@ -499,109 +679,336 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <p className="empty-msg" style={{ padding: '30px 0', fontSize: 13 }}>Carregando...</p>
           ) : filteredIncomes.length === 0 ? (
             searchQuery.trim() || activeFilterCount > 0 ? (
-              <div className="empty-list" style={{ padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                <Search size={24} color="var(--line-strong)" style={{ marginBottom: 12 }} />
-                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Nenhuma receita encontrada.</p>
-                <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Tente ajustar os filtros ou a busca.</p>
+              <div className="premium-empty-state">
+                <div className="icon-container">
+                  <Search size={24} />
+                </div>
+                <h3>Nenhuma entrada encontrada</h3>
+                <p>Ajuste a busca ou limpe os filtros para visualizar seus lançamentos.</p>
+                <div className="actions-row">
+                  <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, border: '1px solid var(--line-soft)', cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setFilterState(defaultFilterState); }}>Limpar filtros</button>
+                  <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, background: 'var(--teal)', color: 'white', border: 'none', cursor: 'pointer' }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
+                </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', textAlign: 'center' }}>
-                <div style={{ 
-                  width: 56, 
-                  height: 56, 
-                  borderRadius: 16, 
-                  background: '#FCFAF7', 
-                  border: '1px dashed rgba(13, 61, 55, 0.15)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  marginBottom: 16,
-                  color: 'var(--muted)'
-                }}>
+              <div className="premium-empty-state">
+                <div className="icon-container">
                   <CalendarClock size={24} />
                 </div>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--teal-900)', margin: '0 0 6px 0' }}>Nenhuma receita registrada</h3>
-                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, maxWidth: 260, lineHeight: 1.4 }}>
-                  Comece a adicionar suas receitas para acompanhar suas metas e fluxo.
-                </p>
+                <h3>Nenhuma entrada cadastrada</h3>
+                <p>Cadastre uma receita para acompanhar seus recebimentos neste mês.</p>
+                <div className="actions-row">
+                  <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, background: 'var(--teal)', color: 'white', border: 'none', cursor: 'pointer' }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
+                </div>
               </div>
             )
           ) : (
-            <div style={{ marginTop: 12 }}>
-              {paginatedIncomes.map(item => {
-                const cat = categories.find(c => c.name === item.category)
-                const catColor = cat?.color ?? '#90A4AE'
-                return (
-                  <div key={item.id} className="row-item" style={{ borderBottom: '1px solid var(--line-soft)', padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 16, background: catColor + '15', color: catColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <ArrowDown size={14} />
-                    </div>
-                    
-                    <div className="row-main" style={{ flex: 1, minWidth: 0 }}>
-                      <div className="row-name" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.description || item.category}
-                        </span>
-                        {(() => {
+            <div className="premium-list-container">
+              {/* Header (desktop/tablet only) */}
+              <div className="premium-table-header desktop-tablet-only">
+                <div className="col-sit">Situação</div>
+                <div className="col-date sortable" onClick={() => setFilterState(prev => ({ ...prev, order: prev.order === 'newest' ? 'oldest' : 'newest' }))}>
+                  Data {filterState.order === 'newest' ? '↓' : filterState.order === 'oldest' ? '↑' : ''}
+                </div>
+                <div className="col-desc">Descrição</div>
+                <div className="col-cat" style={{ textAlign: 'center' }}>Categoria</div>
+                <div className="col-acc">Conta</div>
+                <div className="col-val" style={{ textAlign: 'right' }}>Valor</div>
+                <div className="col-actions" style={{ textAlign: 'right' }}>Ações</div>
+              </div>
+
+              <div className="premium-rows-container">
+                {groupedIncomes.map(group => {
+                  return (
+                    <div key={group.date} className="date-group">
+                      <div className="group-header">
+                        <span className="group-date">{formatGroupDate(group.date)}</span>
+                        <span className="group-summary">{getGroupSummary(group.items)}</span>
+                      </div>
+                      <div className="group-items">
+                        {group.items.map(item => {
+                          const cat = categories.find(c => c.name === item.category)
+                          const catColor = cat?.color ?? '#90A4AE'
                           const status = getTransactionStatus(item.payment_status, item.date)
-                          if (status === 'paid') {
-                            return <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)', background: 'rgba(40,167,69,0.1)', padding: '2px 6px', borderRadius: 8 }}>Recebido</span>
-                          } else if (status === 'overdue') {
-                            return <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--neg)', background: 'rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: 8 }}>Atrasado</span>
-                          } else {
-                            return <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--orange-ink)', background: 'rgba(245,124,0,0.1)', padding: '2px 6px', borderRadius: 8 }}>Pendente</span>
+                          const account = accounts.find(a => a.id === item.account_id)
+                          
+                          // details for subtext
+                          const subParts: string[] = []
+                          if (item.is_recurring) subParts.push('Recorrente')
+                          if (item.installment_number && item.installments_total) {
+                            subParts.push(`Parcela ${item.installment_number}/${item.installments_total}`)
                           }
-                        })()}
-                      </div>
-                      
-                      <div className="row-sub" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
-                        <span>{item.category}</span>
-                        <span style={{ color: 'var(--line-strong)' }}>•</span>
-                        <span>{formatDate(item.date)}</span>
-                        
-                        {item.tags && item.tags.length > 0 && (
-                          <>
-                            <span style={{ color: 'var(--line-strong)' }}>•</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {item.tags.map(t => <span key={t} style={{ fontSize: 9, background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4, color: 'var(--faint)' }}>{t}</span>)}
+                          const descriptionSubtext = subParts.join(' · ')
+                          
+                          let valSub = ''
+                          if (item.installment_number) valSub = `Parcela ${item.installment_number}/${item.installments_total}`
+                          else if (item.is_recurring) valSub = 'Recorrente'
+                          
+                          return (
+                            <div key={item.id}>
+                              {/* Desktop/Tablet Row */}
+                              <div className="premium-table-row desktop-tablet-only">
+                                <div className="cell-sit">
+                                  <span className={`status-badge ${status}`}>
+                                    {status === 'paid' && '✓ Recebido'}
+                                    {status === 'pending' && '○ Pendente'}
+                                    {status === 'overdue' && '! Atrasado'}
+                                  </span>
+                                </div>
+                                <div className="cell-date">
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{formatShortDate(item.date)}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                                    {status === 'paid' ? `Recebido em ${item.received_at ? formatShortDate(item.received_at) : formatShortDate(item.date)}` :
+                                     status === 'overdue' ? `Venceu em ${formatShortDate(item.date)}` : `Previsto para ${formatShortDate(item.date)}`}
+                                  </div>
+                                </div>
+                                <div className="cell-desc">
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
+                                    {item.description || item.category}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                                    {descriptionSubtext}
+                                  </div>
+                                </div>
+                                 <div className="cell-cat" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                                   <span className="category-badge" style={{ backgroundColor: catColor + '10', color: catColor }}>
+                                     <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                     {item.category}
+                                   </span>
+                                   <span 
+                                     style={{ 
+                                       display: 'inline-flex',
+                                       alignItems: 'center',
+                                       fontSize: '9px', 
+                                       fontWeight: 800,
+                                       textTransform: 'uppercase',
+                                       letterSpacing: '0.05em',
+                                       padding: '2px 6px',
+                                       borderRadius: '6px',
+                                       background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
+                                       color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
+                                       border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
+                                     }}
+                                   >
+                                     {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                   </span>
+                                </div>
+                                <div className="cell-acc">
+                                  {item.account_id ? (
+                                    account ? (
+                                      <span className="account-badge active">{account.name}</span>
+                                    ) : (
+                                      <span className="account-badge warning">Conta não encontrada</span>
+                                    )
+                                  ) : (
+                                    <span className={`account-badge ${status !== 'paid' ? 'warning' : 'muted'}`}>Sem conta</span>
+                                  )}
+                                </div>
+                                <div className="cell-val" style={{ textAlign: 'right' }}>
+                                  <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 700, color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)' }}>
+                                    + R$ {brl(Number(item.amount))}
+                                  </div>
+                                  {valSub && (
+                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{valSub}</div>
+                                  )}
+                                </div>
+                                <div className="cell-actions" style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', position: 'relative' }} onClick={e => e.stopPropagation()}>
+                                    {status !== 'paid' && (
+                                      <button 
+                                        className="action-btn check-btn"
+                                        onClick={() => handleToggleStatus(item)}
+                                        disabled={savingItemId !== null}
+                                        title="Marcar como recebida"
+                                      >
+                                        {savingItemId === item.id ? <div className="spinner-small" /> : <CheckCircle2 size={12} />}
+                                      </button>
+                                    )}
+                                    
+                                    <button 
+                                      className="action-btn"
+                                      onClick={() => setEditIncome(item)}
+                                      title="Editar"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                    
+                                    <button 
+                                      className="action-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setActiveMenuId(activeMenuId === item.id ? null : item.id)
+                                      }}
+                                      title="Mais opções"
+                                    >
+                                      <MoreHorizontal size={12} />
+                                    </button>
+                                    
+                                    {activeMenuId === item.id && (
+                                      <div className="premium-dropdown">
+                                        <button className="dropdown-item" onClick={() => {
+                                          const cloned = {
+                                            ...item,
+                                            id: undefined as unknown as string,
+                                            created_at: undefined as unknown as string,
+                                            updated_at: undefined as unknown as string,
+                                            received_at: null,
+                                            payment_status: false,
+                                            installment_group_id: undefined
+                                          }
+                                          setEditIncome(cloned)
+                                          setActiveMenuId(null)
+                                        }}>
+                                          <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
+                                        </button>
+                                        {status === 'paid' && (
+                                          <button className="dropdown-item warning" onClick={() => {
+                                            handleToggleStatusToUnpaid(item)
+                                            setActiveMenuId(null)
+                                          }}>
+                                            <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
+                                          </button>
+                                        )}
+                                        <button className="dropdown-item danger" onClick={() => {
+                                          if (confirm("Tem certeza que deseja excluir esta receita?")) {
+                                            handleDelete(item.id)
+                                          }
+                                          setActiveMenuId(null)
+                                        }}>
+                                          <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Mobile Card */}
+                              <div className="premium-mobile-card mobile-only">
+                                <div className="mobile-top-row">
+                                  <span className="mobile-desc-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '65%' }}>
+                                    {item.description || item.category}
+                                  </span>
+                                  <span className={`mobile-amount ${status} tabnums${hidden ? ' priv' : ''}`}>
+                                    + R$ {brl(Number(item.amount))}
+                                  </span>
+                                </div>
+                                
+                                <div className="mobile-badge-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span className={`status-badge ${status}`}>
+                                    {status === 'paid' && '✓ Recebido'}
+                                    {status === 'pending' && '○ Pendente'}
+                                    {status === 'overdue' && '! Atrasado'}
+                                  </span>
+                                  {valSub && (
+                                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{valSub}</span>
+                                  )}
+                                </div>
+                                
+                                <div className="mobile-meta-row">
+                                  <div>{formatMainDate(item.date)} · <span className="cat-text">{item.category}</span> · <span 
+                                     style={{ 
+                                       display: 'inline-flex',
+                                       alignItems: 'center',
+                                       fontSize: '8.5px', 
+                                       fontWeight: 800,
+                                       textTransform: 'uppercase',
+                                       letterSpacing: '0.04em',
+                                       padding: '1px 5px',
+                                       borderRadius: '4px',
+                                       background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
+                                       color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
+                                       border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.1)' : '1px solid rgba(245, 124, 0, 0.1)'
+                                     }}
+                                   >
+                                     {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                   </span></div>
+                                  <div className="acc-text">
+                                    {item.account_id ? (
+                                      account ? (
+                                        <span className="account-badge active">{account.name}</span>
+                                      ) : (
+                                        <span className="account-badge warning">Conta não encontrada</span>
+                                      )
+                                    ) : (
+                                      <span className={`account-badge ${status !== 'paid' ? 'warning' : 'muted'}`}>Sem conta</span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="mobile-actions-row" onClick={e => e.stopPropagation()}>
+                                  {status !== 'paid' ? (
+                                    <button 
+                                      className="mobile-action-btn primary"
+                                      onClick={() => handleToggleStatus(item)}
+                                      disabled={savingItemId !== null}
+                                      style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                    >
+                                      {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={12} />} 
+                                      Marcar recebida
+                                    </button>
+                                  ) : null}
+                                  <button 
+                                    className="mobile-action-btn secondary"
+                                    onClick={() => setEditIncome(item)}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button 
+                                    className="mobile-action-btn icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setActiveMenuId(activeMenuId === item.id ? null : item.id)
+                                    }}
+                                  >
+                                    <MoreHorizontal size={14} />
+                                  </button>
+                                  
+                                  {activeMenuId === item.id && (
+                                    <div className="premium-dropdown" style={{ bottom: '100%', top: 'auto', right: 0 }}>
+                                      <button className="dropdown-item" onClick={() => {
+                                        const cloned = {
+                                          ...item,
+                                          id: undefined as unknown as string,
+                                          created_at: undefined as unknown as string,
+                                          updated_at: undefined as unknown as string,
+                                          received_at: null,
+                                          payment_status: false,
+                                          installment_group_id: undefined
+                                        }
+                                        setEditIncome(cloned)
+                                        setActiveMenuId(null)
+                                      }}>
+                                        <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
+                                      </button>
+                                      {status === 'paid' && (
+                                        <button className="dropdown-item warning" onClick={() => {
+                                          handleToggleStatusToUnpaid(item)
+                                          setActiveMenuId(null)
+                                        }}>
+                                          <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
+                                        </button>
+                                      )}
+                                      <button className="dropdown-item danger" onClick={() => {
+                                        if (confirm("Tem certeza que deseja excluir esta receita?")) {
+                                          handleDelete(item.id)
+                                        }
+                                        setActiveMenuId(null)
+                                      }}>
+                                        <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </>
-                        )}
+                          )
+                        })}
                       </div>
                     </div>
-                    
-                    <div className="row-amt pos" style={{ textAlign: 'right' }}>
-                      <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
-                        + R$ {brl(Number(item.amount))}
-                      </div>
-                    </div>
-                    
-                    <button 
-                      className="icon-btn" 
-                      style={{ background: 'transparent', color: 'var(--muted)', padding: 4 }} 
-                      onClick={() => {
-                        const cloned = {
-                          ...item,
-                          id: undefined as unknown as string,
-                          created_at: undefined as unknown as string,
-                          updated_at: undefined as unknown as string,
-                          received_at: null,
-                          payment_status: false,
-                          installment_group_id: undefined
-                        }
-                        setEditIncome(cloned)
-                      }} 
-                      disabled={isPending} 
-                      title="Duplicar"
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <button className="icon-btn" style={{ background: 'transparent', color: 'var(--muted)', padding: 4 }} onClick={() => setEditIncome(item)} disabled={isPending} title="Editar">
-                      <Pencil size={14} />
-                    </button>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -635,6 +1042,374 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
           </div>
         )}
+
+        <style jsx>{`
+          .premium-list-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+          }
+          .premium-table-header {
+            display: grid;
+            grid-template-columns: 100px 100px 1.8fr 1.2fr 1.2fr 100px 120px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--line-soft);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(0,0,0,0.01);
+          }
+          .premium-table-header > div:not(:last-child) {
+            position: relative;
+            padding-right: 12px;
+          }
+          .premium-table-header > div:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1px;
+            height: 12px;
+            background-color: var(--line);
+            opacity: 0.8;
+          }
+          .col-date.sortable {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+          }
+          .col-date.sortable:hover {
+            color: var(--ink);
+          }
+          .group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 12px 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            border-bottom: 1px solid rgba(0,0,0,0.02);
+            margin-top: 8px;
+          }
+          .group-date {
+            text-transform: capitalize;
+            font-weight: 700;
+            color: var(--ink);
+          }
+          .group-summary {
+            background: var(--surface-2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+          }
+          .premium-table-row {
+            display: grid;
+            grid-template-columns: 100px 100px 1.8fr 1.2fr 1.2fr 100px 120px;
+            gap: 12px;
+            align-items: center;
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--line-soft);
+            transition: background-color 0.2s ease;
+          }
+          .premium-table-row:hover {
+            background-color: rgba(1, 88, 76, 0.02);
+          }
+          .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 12px;
+            white-space: nowrap;
+          }
+          .status-badge.paid {
+            color: var(--green);
+            background: rgba(40,167,69,0.08);
+          }
+          .status-badge.pending {
+            color: #A06E00;
+            background: rgba(255,179,0,0.08);
+          }
+          .status-badge.overdue {
+            color: var(--neg);
+            background: rgba(239,68,68,0.08);
+          }
+          .category-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .category-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            flex-shrink: 0;
+          }
+          .account-badge {
+            display: inline-flex;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 8px;
+            white-space: nowrap;
+          }
+          .account-badge.active {
+            color: var(--ink);
+            background: var(--surface-2);
+          }
+          .account-badge.warning {
+            color: #A06E00;
+            background: rgba(255,179,0,0.08);
+          }
+          .account-badge.muted {
+            color: var(--muted);
+            background: rgba(0,0,0,0.03);
+          }
+          .action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--line-soft);
+            background: var(--surface);
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+          .action-btn:hover {
+            background: var(--surface-2);
+            color: var(--ink);
+            border-color: var(--line-strong);
+          }
+          .action-btn.check-btn {
+            color: var(--green);
+            border-color: rgba(40,167,69,0.2);
+          }
+          .action-btn.check-btn:hover {
+            background: rgba(40,167,69,0.05);
+            border-color: var(--green);
+          }
+          .spinner-small {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(40, 167, 69, 0.2);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          .premium-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--line-soft);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            z-index: 100;
+            min-width: 155px;
+            padding: 4px;
+            margin-top: 4px;
+            display: flex;
+            flex-direction: column;
+          }
+          .dropdown-item {
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            font-size: 12px;
+            text-align: left;
+            cursor: pointer;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            border-radius: 6px;
+            width: 100%;
+            font-weight: 500;
+          }
+          .dropdown-item:hover {
+            background: var(--surface-2);
+          }
+          .dropdown-item.warning {
+            color: var(--orange-ink);
+          }
+          .dropdown-item.danger {
+            color: var(--neg);
+          }
+          .dropdown-item.danger:hover {
+            background: rgba(239,68,68,0.05);
+          }
+          .premium-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 48px 24px;
+          }
+          .premium-empty-state .icon-container {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(1, 88, 76, 0.03);
+            border: 1px dashed rgba(13, 61, 55, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            color: var(--muted);
+          }
+          .premium-empty-state h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--teal-900);
+            margin: 0 0 6px 0;
+          }
+          .premium-empty-state p {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0 0 20px 0;
+            max-width: 280px;
+            line-height: 1.5;
+          }
+          .premium-empty-state .actions-row {
+            display: flex;
+            gap: 8px;
+          }
+          .tablet-only-inline {
+            display: none;
+          }
+          .mobile-only {
+            display: none !important;
+          }
+          @media (max-width: 767px) {
+            .desktop-tablet-only {
+              display: none !important;
+            }
+            .mobile-only {
+              display: flex !important;
+            }
+            .premium-mobile-card {
+              border: 1px solid var(--line-soft);
+              border-radius: 12px;
+              background: var(--surface);
+              padding: 16px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              margin-bottom: 12px;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.01);
+              position: relative;
+            }
+            .mobile-top-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .mobile-desc-title {
+              font-size: 13px;
+              font-weight: 600;
+              color: var(--ink);
+            }
+            .mobile-amount {
+              font-size: 13px;
+              font-weight: 700;
+            }
+            .mobile-amount.paid {
+              color: var(--green);
+            }
+            .mobile-amount.pending {
+              color: var(--teal-900);
+            }
+            .mobile-amount.overdue {
+              color: var(--neg);
+            }
+            .mobile-meta-row {
+              font-size: 11px;
+              color: var(--muted);
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .cat-text {
+              font-weight: 600;
+            }
+            .mobile-actions-row {
+              display: flex;
+              gap: 8px;
+              position: relative;
+            }
+            .mobile-action-btn {
+              font-size: 12px;
+              font-weight: 600;
+              padding: 6px 12px;
+              border-radius: 8px;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              border: 1px solid var(--line-soft);
+            }
+            .mobile-action-btn.primary {
+              background: var(--teal);
+              color: white;
+              border-color: var(--teal);
+              flex: 2;
+            }
+            .mobile-action-btn.primary:hover {
+              background: var(--teal-900);
+            }
+            .mobile-action-btn.secondary {
+              background: var(--surface);
+              color: var(--ink);
+              flex: 1;
+            }
+            .mobile-action-btn.icon {
+              background: var(--surface);
+              color: var(--muted);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 32px;
+              padding: 6px 0;
+            }
+          }
+          @media (min-width: 768px) and (max-width: 1023px) {
+            .premium-table-header {
+              grid-template-columns: 100px 100px 1.8fr 100px 120px;
+            }
+            .premium-table-row {
+              grid-template-columns: 100px 100px 1.8fr 100px 120px;
+            }
+            .col-cat, .col-acc, .cell-cat, .cell-acc {
+              display: none !important;
+            }
+            .tablet-only-inline {
+              display: inline;
+            }
+          }
+        `}</style>
       </section>
         </div>
         <div className="receitas-rail-col">

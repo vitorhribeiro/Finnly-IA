@@ -2127,6 +2127,32 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
 
   const activeLabel = NAV.find(n => n.id === active)?.label ?? 'Visão geral'
 
+  const getSubtitle = () => {
+    const firstName = userName.split(' ')[0]
+    switch (active) {
+      case 'home':
+        return `Olá, ${firstName}! Acompanhe o resumo da sua saúde financeira.`
+      case 'receitas':
+        return `Olá, ${firstName}! Acompanhe suas entradas e projeções.`
+      case 'despesas':
+        return `Olá, ${firstName}! Acompanhe seus gastos e analise riscos.`
+      case 'accounts':
+        return `Olá, ${firstName}! Gerencie suas contas bancárias e saldos.`
+      case 'cards':
+        return `Olá, ${firstName}! Controle seus cartões de crédito e limites.`
+      case 'invest':
+        return `Olá, ${firstName}! Monitore seus investimentos e evolução patrimonial.`
+      case 'goals':
+        return `Olá, ${firstName}! Acompanhe suas metas de médio e longo prazo.`
+      case 'reports':
+        return `Olá, ${firstName}! Veja relatórios detalhados e insights inteligentes.`
+      case 'ai':
+        return `Olá, ${firstName}! Converse com a inteligência artificial do Finnly.`
+      default:
+        return `Olá, ${firstName}! Bem-vindo de volta.`
+    }
+  }
+
   // Notificações dinâmicas baseadas nos dados
   const notifs = []
   if (dashboardData.monthlyExpenses > dashboardData.monthlyIncome && dashboardData.monthlyIncome > 0) {
@@ -2341,116 +2367,124 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
       <main className="main">
         <div className="main-inner">
           {/* TOPBAR */}
-          <div className="topbar">
-            <div className="tb-hello">
-              <div className="tb-date">{dateFormatted}</div>
-              <div className="tb-title" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {activeLabel}
-                {active === 'home' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="ov-month-selector-wrapper">
-                      <button
-                        onClick={handlePrevMonth}
-                        disabled={isPending}
-                        className="ov-month-nav-btn prev"
-                        title="Mês anterior"
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
-                      <div className="ov-month-label-container">
-                        <Calendar size={15} className="ov-month-icon" />
-                        <span className="ov-month-label-text">
-                          {getMonthLabel(activeMonth)}
-                        </span>
+          <div className="topbar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, marginBottom: 24, height: 'auto' }}>
+            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
+              <div className="tb-hello" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div className="tb-date" style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {dateFormatted}
+                </div>
+                <div className="tb-title" style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 28, fontWeight: 800, color: 'var(--ink)', margin: 0, lineHeight: 1.1 }}>
+                  {active === 'home' ? 'Início' : activeLabel}
+                  {active === 'home' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 14 }}>
+                      <div className="ov-month-selector-wrapper">
+                        <button
+                          onClick={handlePrevMonth}
+                          disabled={isPending}
+                          className="ov-month-nav-btn prev"
+                          title="Mês anterior"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <div className="ov-month-label-container">
+                          <Calendar size={15} className="ov-month-icon" />
+                          <span className="ov-month-label-text">
+                            {getMonthLabel(activeMonth)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleNextMonth}
+                          disabled={isPending}
+                          className="ov-month-nav-btn next"
+                          title="Próximo mês"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
                       </div>
                       <button
-                        onClick={handleNextMonth}
-                        disabled={isPending}
-                        className="ov-month-nav-btn next"
-                        title="Próximo mês"
+                        onClick={() => setCustomizing(true)}
+                        className="layout-customize-btn"
+                        title="Personalizar visão geral"
                       >
-                        <ChevronRight size={16} />
+                        <SlidersHorizontal size={15} />
+                        <span>Personalizar</span>
                       </button>
                     </div>
-                    <button
-                      onClick={() => setCustomizing(true)}
-                      className="layout-customize-btn"
-                      title="Personalizar visão geral"
-                    >
-                      <SlidersHorizontal size={15} />
-                      <span>Personalizar</span>
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
+                <div className="tb-subtitle" style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginTop: 2 }}>
+                  {getSubtitle()}
+                </div>
               </div>
-            </div>
-            <div className="tb-grow" />
 
-            {/* Search */}
-            <div
-              className="ask"
-              onClick={e => {
-                if ((e.target as HTMLElement).tagName !== 'INPUT') {
-                  e.currentTarget.querySelector('input')?.focus()
-                }
-              }}
-            >
-              <span className="spark"><Sparkles size={15} /></span>
-              <input
-                placeholder="Pergunte ao Finnly…"
-                value={askVal}
-                onChange={e => setAskVal(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && askVal.trim()) {
-                    openChat(askVal.trim())
-                    setAskVal('')
-                  }
-                }}
-              />
-              <kbd>↵</kbd>
-            </div>
-
-            {/* Hide values */}
-            <button className="icon-btn" onClick={() => setHidden(h => !h)} title={hidden ? 'Mostrar valores' : 'Ocultar valores'}>
-              {hidden ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-
-            {/* Bell */}
-            <div ref={bellRef} style={{ position: 'relative' }}>
-              <button className="icon-btn" onClick={() => setBell(b => !b)} title="Notificações">
-                <Bell size={20} />
-                {notifs.length > 0 && <span className="dot" />}
-              </button>
-              {bell && (
-                <>
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                    onClick={() => setBell(false)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
+                {/* Search */}
+                <div
+                  className="ask"
+                  onClick={e => {
+                    if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                      e.currentTarget.querySelector('input')?.focus()
+                    }
+                  }}
+                >
+                  <span className="spark"><Sparkles size={15} /></span>
+                  <input
+                    placeholder="Pergunte ao Finnly…"
+                    value={askVal}
+                    onChange={e => setAskVal(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && askVal.trim()) {
+                        openChat(askVal.trim())
+                        setAskVal('')
+                      }
+                    }}
                   />
-                  <div className="card" style={{ position: 'absolute', right: 0, top: 54, width: 320, zIndex: 50, padding: 14, boxShadow: 'var(--shadow-lg)' }}>
-                    <div style={{ fontWeight: 800, fontSize: 15, padding: '2px 4px 10px' }}>Notificações</div>
-                    {notifs.length === 0 ? (
-                      <p style={{ color: '#888', fontSize: 14, padding: '8px 4px' }}>Nenhuma notificação.</p>
-                    ) : notifs.map((n, i) => (
-                      <div
-                        key={i} className="row-item" style={{ cursor: 'pointer' }}
-                        onClick={() => { openChat(n.seed); setBell(false) }}
-                      >
-                        <div className={`row-ic ${n.tint}`}><n.Icon size={18} /></div>
-                        <div className="row-main">
-                          <div className="row-name" style={{ whiteSpace: 'normal' }}>{n.t}</div>
-                          <div className="row-sub">{n.s}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                  <kbd>↵</kbd>
+                </div>
 
-            {/* Avatar */}
-            <div className="tb-avatar" onClick={() => openChat()} title="Abrir Finnly IA">
-              {userInitial}
+                {/* Hide values */}
+                <button className="icon-btn" onClick={() => setHidden(h => !h)} title={hidden ? 'Mostrar valores' : 'Ocultar valores'}>
+                  {hidden ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+
+                {/* Bell */}
+                <div ref={bellRef} style={{ position: 'relative' }}>
+                  <button className="icon-btn" onClick={() => setBell(b => !b)} title="Notificações">
+                    <Bell size={20} />
+                    {notifs.length > 0 && <span className="dot" />}
+                  </button>
+                  {bell && (
+                    <>
+                      <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                        onClick={() => setBell(false)}
+                      />
+                      <div className="card" style={{ position: 'absolute', right: 0, top: 54, width: 320, zIndex: 50, padding: 14, boxShadow: 'var(--shadow-lg)' }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, padding: '2px 4px 10px' }}>Notificações</div>
+                        {notifs.length === 0 ? (
+                          <p style={{ color: '#888', fontSize: 14, padding: '8px 4px' }}>Nenhuma notificação.</p>
+                        ) : notifs.map((n, i) => (
+                          <div
+                            key={i} className="row-item" style={{ cursor: 'pointer' }}
+                            onClick={() => { openChat(n.seed); setBell(false) }}
+                          >
+                            <div className={`row-ic ${n.tint}`}><n.Icon size={18} /></div>
+                            <div className="row-main">
+                              <div className="row-name" style={{ whiteSpace: 'normal' }}>{n.t}</div>
+                              <div className="row-sub">{n.s}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Avatar */}
+                <div className="tb-avatar" onClick={() => openChat()} title="Abrir Finnly IA">
+                  {userInitial}
+                </div>
+              </div>
             </div>
           </div>
 

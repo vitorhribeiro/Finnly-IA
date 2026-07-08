@@ -168,11 +168,7 @@ export function ContasSection({ hidden }: { hidden: boolean }) {
 
   return (
     <div className="fd-stack fade-up">
-      <div className="topbar-inline">
-        <div>
-          <h2 className="section-title">Contas & Saldos</h2>
-          <p className="section-sub">Gerencie seus bancos, carteira de dinheiro e poupança</p>
-        </div>
+      <div className="topbar-inline" style={{ justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-ghost" onClick={openTransfer} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <ArrowRightLeft size={16} /> Transferir

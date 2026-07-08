@@ -47,6 +47,7 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusTab, setStatusTab] = useState<'all' | 'received' | 'pending'>('all')
 
   // Modals
   const [showForm, setShowForm] = useState(false)
@@ -165,25 +166,50 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
       }
       
-      if (filterState.categoryId && filterState.categoryId !== 'all' && inc.category !== filterState.categoryId) return false
+      // 1. Category Filter (match UUID in filterState.categoryId to categories name)
+      if (filterState.categoryId && filterState.categoryId !== 'all') {
+        const cat = categories.find(c => c.id === filterState.categoryId)
+        if (cat && inc.category !== cat.name) return false
+      }
       
+      // 2. Account Filter
       if (filterState.accountId && filterState.accountId !== 'all') {
          if (inc.account_id !== filterState.accountId && inc.paid_account_id !== filterState.accountId) return false
       }
+
+      // 3. Card Filter
       if (filterState.creditCardId && filterState.creditCardId !== 'all') {
          if (inc.credit_card_id !== filterState.creditCardId) return false
       }
       
-      if (filterState.paymentMethod === 'received' && !inc.payment_status) return false // received for expenses means paid
-      if (filterState.paymentMethod === 'pending' && inc.payment_status) return false
+      // 4. Status Tab Filter (from Quick Toolbar Tabs)
+      const status = getTransactionStatus(inc.payment_status, inc.date)
+      if (statusTab === 'received' && status !== 'paid') return false // received for expenses means paid
+      if (statusTab === 'pending' && status === 'paid') return false
+
+      // 5. Payment Method Filter (from Drawer)
+      if (filterState.paymentMethod && filterState.paymentMethod !== 'all') {
+        if (inc.payment_method !== filterState.paymentMethod) return false
+      }
+
+      // 6. Type Filter
       if (filterState.transactionType !== 'all' && inc.expense_type !== filterState.transactionType) return false
       
+      // 7. Tags Filter
       if (filterState.tags && filterState.tags.length > 0) {
         const incTags = inc.tags || []
         if (!filterState.tags.every(t => incTags.includes(t))) return false
       }
-      if (filterState.minAmount && Number(inc.amount) < Number(filterState.minAmount)) return false
-      if (filterState.maxAmount && Number(inc.amount) > Number(filterState.maxAmount)) return false
+
+      // 8. Amount Filters (parse Brazilian format)
+      if (filterState.minAmount) {
+        const cleanMin = parseFloat(filterState.minAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMin) && Number(inc.amount) < cleanMin) return false
+      }
+      if (filterState.maxAmount) {
+        const cleanMax = parseFloat(filterState.maxAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMax) && Number(inc.amount) > cleanMax) return false
+      }
 
       return true
     }).sort((a, b) => {
@@ -193,17 +219,13 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       if (filterState.order === 'lowest') return Number(a.amount) - Number(b.amount)
       return 0
     })
-  }, [items, searchQuery, filterState, selectedMonth])
+  }, [items, searchQuery, filterState, selectedMonth, statusTab, categories])
 
   const activeFilterCount = Object.values(filterState).filter(v => v && v !== 'all' && v !== 'global' && v !== 'newest' && (!Array.isArray(v) || v.length > 0)).length
 
   return (
     <div className="fd-stack fade-up">
-      <div className="topbar-inline">
-        <div>
-          <h2 className="section-title">Despesas</h2>
-          <p className="section-sub" style={{ color: 'var(--muted)' }}>Acompanhe seus gastos e analise riscos</p>
-        </div>
+      <div className="topbar-inline" style={{ justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '4px 8px', borderRadius: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
             <button className="icon-btn" style={{ background: 'transparent' }} onClick={() => {
@@ -498,23 +520,23 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }} className="hide-scrollbar">
               <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'all' ? 'active-chip' : ''}`}
-                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: filterState.paymentMethod === 'all' ? 'var(--ink)' : 'var(--surface)', color: filterState.paymentMethod === 'all' ? 'white' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'all' })}
+                className={`btn-ghost ${statusTab === 'all' ? 'active-chip' : ''}`}
+                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: statusTab === 'all' ? 'var(--ink)' : 'var(--surface)', color: statusTab === 'all' ? 'white' : 'var(--muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                onClick={() => setStatusTab('all')}
               >
                 Todas
               </button>
               <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'received' ? 'active-chip' : ''}`}
-                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: filterState.paymentMethod === 'received' ? 'rgba(40,167,69,0.1)' : 'var(--surface)', color: filterState.paymentMethod === 'received' ? 'var(--green)' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'received' })}
+                className={`btn-ghost ${statusTab === 'received' ? 'active-chip' : ''}`}
+                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: statusTab === 'received' ? 'rgba(40,167,69,0.1)' : 'var(--surface)', color: statusTab === 'received' ? 'var(--green)' : 'var(--muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                onClick={() => setStatusTab('received')}
               >
                 Pagas
               </button>
               <button 
-                className={`btn-ghost ${filterState.paymentMethod === 'pending' ? 'active-chip' : ''}`}
-                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: filterState.paymentMethod === 'pending' ? 'rgba(239,68,68,0.1)' : 'var(--surface)', color: filterState.paymentMethod === 'pending' ? '#EF4444' : 'var(--muted)', whiteSpace: 'nowrap' }}
-                onClick={() => setFilterState({ ...filterState, paymentMethod: 'pending' })}
+                className={`btn-ghost ${statusTab === 'pending' ? 'active-chip' : ''}`}
+                style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, background: statusTab === 'pending' ? 'rgba(239,68,68,0.1)' : 'var(--surface)', color: statusTab === 'pending' ? '#EF4444' : 'var(--muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                onClick={() => setStatusTab('pending')}
               >
                 Pendentes
               </button>

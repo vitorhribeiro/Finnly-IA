@@ -793,10 +793,10 @@ export function IncomeInsightDrawer({ isOpen, onClose, type, data, onEdit, onTog
         return { text: 'SAUDÁVEL', bg: 'rgba(40,167,69,0.08)', color: 'var(--green)', icon: <CheckCircle2 size={12} /> }
       }
       if (status === 'light_attention') {
-        return { text: 'ESTÁVEL', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} />, secondary: 'Atenção Leve' }
+        return { text: 'ESTÁVEL', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} /> }
       }
       if (status === 'attention') {
-        return { text: 'ATENÇÃO', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} />, secondary: 'Atenção Moderada' }
+        return { text: 'ATENÇÃO', bg: 'rgba(255,179,0,0.08)', color: '#A06E00', icon: <AlertTriangle size={12} /> }
       }
       if (status === 'critical') {
         return { text: 'CRÍTICO', bg: 'rgba(239,68,68,0.08)', color: 'var(--neg)', icon: <AlertTriangle size={12} /> }
@@ -907,11 +907,6 @@ export function IncomeInsightDrawer({ isOpen, onClose, type, data, onEdit, onTog
                   {badge.icon}
                   {badge.text}
                 </span>
-                {badge.secondary && (
-                  <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
-                    ({badge.secondary})
-                  </span>
-                )}
               </div>
 
               <p style={{ fontSize: 13.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.4 }}>

@@ -148,11 +148,7 @@ export function MetasSection({ hidden }: { hidden: boolean }) {
 
   return (
     <div className="fd-stack fade-up">
-      <div className="topbar-inline">
-        <div>
-          <h2 className="section-title">Metas financeiras</h2>
-          <p className="section-sub">Acompanhe o progresso dos seus objetivos</p>
-        </div>
+      <div className="topbar-inline" style={{ justifyContent: 'flex-end' }}>
         <button className="btn-primary" onClick={() => setShowForm(true)}>
           <Plus size={18} /> Nova meta
         </button>

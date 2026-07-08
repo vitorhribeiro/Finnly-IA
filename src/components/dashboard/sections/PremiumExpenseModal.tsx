@@ -1,6 +1,6 @@
 import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ChevronDown, Tag, Upload, AlertCircle } from 'lucide-react'
+import { X, ChevronDown, Tag, Upload, AlertCircle, Plus } from 'lucide-react'
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { QuickCategoryModal, QuickAccountModal, QuickCardModal } from '@/components/ui/QuickModals'
@@ -79,7 +79,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
   const isEdit = !!expense && !!expense.id
 
   const [amount, setAmount] = useState(() => {
-    if (expense) return formatCurrencyInput(String(expense.amount))
+    if (expense) return Number(expense.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return ''
   })
   
@@ -124,6 +124,14 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
   const [tags, setTags] = useState<string[]>(expense?.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [notes, setNotes] = useState(expense?.notes ?? '')
+  const [isClosing, setIsClosing] = useState(false)
+  
+  function handleCloseWithAnimation() {
+    setIsClosing(true)
+    setTimeout(() => {
+      onClose()
+    }, 280)
+  }
   
   const [showDetails, setShowDetails] = useState((expense?.tags && expense.tags.length > 0) || !!expense?.notes || (expense?.payment_status && !expense.credit_card_id))
   const [error, setError] = useState('')
@@ -133,6 +141,8 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
   const [showQuickCategory, setShowQuickCategory] = useState(false)
   const [showQuickAccount, setShowQuickAccount] = useState(false)
   const [showQuickCard, setShowQuickCard] = useState(false)
+  
+  const isAnyQuickModalOpen = showQuickCategory || showQuickAccount || showQuickCard
 
   // Confirm dialog state
   const [showConfirmUndo, setShowConfirmUndo] = useState(false)
@@ -152,8 +162,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
   ]
 
   const categoryOptions = [
-    ...localCategories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color })),
-    { value: '__new_category__', label: '+ Nova categoria', icon: 'Plus', color: '#01584C' }
+    ...localCategories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color }))
   ]
 
   const paidAccountOptions = [
@@ -269,8 +278,11 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
         ? await updateExpense(expense.id, fd)
         : await addExpense(fd)
       if (res && 'error' in res) { setError(res.error ?? 'Erro desconhecido'); return }
-      onSaved()
-      onClose()
+      
+      setIsClosing(true)
+      setTimeout(() => {
+        onSaved()
+      }, 280)
     })
   }
 
@@ -333,15 +345,66 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
 
   return createPortal(
     <>
-      <div className="modal-scrim" onClick={onClose} />
-      <div className="modal-box" style={{ maxWidth: 440, padding: 0, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes filterModalFadeUp {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -46%) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+        @keyframes filterModalFadeDown {
+          from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: translate(-50%, -46%) scale(0.96);
+          }
+        }
+        @keyframes scrimFadeIn {
+          from { opacity: 0; backdrop-filter: blur(0px); }
+          to { opacity: 1; backdrop-filter: blur(8px); }
+        }
+        @keyframes scrimFadeOut {
+          from { opacity: 1; backdrop-filter: blur(8px); }
+          to { opacity: 0; backdrop-filter: blur(0px); }
+        }
+        .filter-modal-animate {
+          animation: filterModalFadeUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .filter-modal-animate-out {
+          animation: filterModalFadeDown 0.28s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+        }
+        .scrim-animate {
+          animation: scrimFadeIn 0.3s ease forwards;
+        }
+        .scrim-animate-out {
+          animation: scrimFadeOut 0.25s ease forwards;
+        }
+      `}</style>
+      <div 
+        className={`modal-scrim scrim-animate ${isClosing ? 'scrim-animate-out' : ''}`}
+        onClick={handleCloseWithAnimation} 
+        style={{
+          display: isAnyQuickModalOpen ? 'none' : 'block'
+        }}
+      />
+      <div 
+        className={`modal-box filter-modal-animate ${isClosing ? 'filter-modal-animate-out' : ''}`} 
+        style={{ maxWidth: 440, padding: 0, overflow: 'hidden', display: isAnyQuickModalOpen ? 'none' : 'flex' }}
+      >
         
         {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--line-soft)' }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
             {isEdit ? 'Editar despesa' : 'Nova despesa'}
           </h3>
-          <button className="icon-btn" onClick={onClose} disabled={isPending}><X size={18} /></button>
+          <button className="icon-btn" onClick={handleCloseWithAnimation} disabled={isPending}><X size={18} /></button>
         </div>
 
         {/* BODY */}
@@ -350,7 +413,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
 
           {/* VALOR NO TOPO */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--faint)' }}>Valor da Despesa</span>
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--faint)' }}>Valor da Despesa</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--muted)', marginTop: 4 }}>R$</span>
               <input 
@@ -427,7 +490,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
           </div>
 
           <div className="entry-form">
-            <label>
+            <div className="field-group">
               <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <span>Vencimento / Data da despesa <span className="req">*</span></span>
               </span>
@@ -510,25 +573,47 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                   </div>
                 </div>
               </div>
-            </label>
+            </div>
 
-            <label>
+            <div className="field-group">
               <span>Descrição</span>
               <input placeholder="Ex: Mercado" value={description} onChange={e => setDescription(e.target.value)} disabled={isPending} />
-            </label>
+            </div>
 
-            <label>
-              <span>Categoria <span className="req">*</span></span>
+            <div className="field-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Categoria <span className="req">*</span></span>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCategory(true)}
+                  disabled={isPending}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--teal)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: 0,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--teal-900)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--teal)'}
+                >
+                  <Plus size={12} style={{ strokeWidth: 3 }} /> Nova Categoria
+                </button>
+              </div>
               <CustomSelect
                 options={categoryOptions}
                 value={category}
-                onChange={val => {
-                  if (val === '__new_category__') setShowQuickCategory(true)
-                  else setCategory(val)
-                }}
+                onChange={setCategory}
                 placeholder="Selecione..."
               />
-            </label>
+            </div>
             
             {/* PAGAR COM SEGMENTED CONTROLS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -583,7 +668,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
 
             {/* SELECTION DROPDOWN BASED ON TABS */}
             {payWith === 'account' ? (
-              <label>
+              <div className="field-group">
                 <span>Conta vinculada</span>
                 <CustomSelect
                   options={accountOptions}
@@ -594,9 +679,9 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                   }}
                   placeholder="Selecione a conta..."
                 />
-              </label>
+              </div>
             ) : (
-              <label>
+              <div className="field-group">
                 <span>Cartão de crédito</span>
                 <CustomSelect
                   options={cardOptions}
@@ -607,10 +692,10 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                   }}
                   placeholder="Selecione o cartão..."
                 />
-              </label>
+              </div>
             )}
 
-            <label>
+            <div className="field-group">
               <span>Como lançar?</span>
               <select value={repeatType} onChange={e => setRepeatType(e.target.value as 'single' | 'recurring' | 'installments')} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
                 <option value="single">Só uma vez</option>
@@ -624,7 +709,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                   <input type="number" min="2" max="99" value={installmentsTotal} onChange={e => setInstallmentsTotal(e.target.value)} disabled={isPending} style={{ width: 80, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)', color: 'var(--ink)' }} placeholder="Ex: 3" />
                 </div>
               )}
-            </label>
+            </div>
             
             {renderInstallmentPreview()}
 
@@ -647,8 +732,8 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                     <div style={{ padding: 16, background: 'rgba(239, 68, 68, 0.03)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 12, border: '1px solid rgba(239, 68, 68, 0.08)' }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--neg)' }}>Baixa do Pagamento</div>
                       
-                      <label>
-                        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Data que foi pago *</span>
+                      <div className="field-group">
+                        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Data que foi pago *</span>
                         <div style={{ position: 'relative', marginTop: 4 }}>
                           <button 
                             type="button"
@@ -671,27 +756,27 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                           </button>
                           <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}>
                             <CustomDatePicker 
-                              value={paidAt} 
-                              onChange={(val) => {
-                                setPaidAt(val)
-                                setIsPaidDatePickerOpen(false)
-                              }} 
-                              externalOpen={isPaidDatePickerOpen}
-                              onExternalOpenChange={setIsPaidDatePickerOpen}
+                               value={paidAt} 
+                               onChange={(val) => {
+                                 setPaidAt(val)
+                                 setIsPaidDatePickerOpen(false)
+                               }} 
+                               externalOpen={isPaidDatePickerOpen}
+                               onExternalOpenChange={setIsPaidDatePickerOpen}
                             />
                           </div>
                         </div>
-                      </label>
+                      </div>
                       
                       <div style={{ display: 'flex', gap: 12 }}>
-                        <label style={{ flex: 1 }}>
-                          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Conta de origem *</span>
+                        <div className="field-group" style={{ flex: 1 }}>
+                          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Conta de origem *</span>
                           <select value={paidAccountId} onChange={e => setPaidAccountId(e.target.value)} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 13, fontWeight: 700, marginTop: 4 }}>
                             {paidAccountOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
-                        </label>
-                        <label style={{ flex: 1 }}>
-                          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Forma de pago *</span>
+                        </div>
+                        <div className="field-group" style={{ flex: 1 }}>
+                          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Forma de pago *</span>
                           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 13, fontWeight: 700, marginTop: 4 }}>
                             <option value="">Selecione...</option>
                             <option value="pix">Pix</option>
@@ -701,12 +786,12 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                             <option value="cash">Dinheiro</option>
                             <option value="other">Outros</option>
                           </select>
-                        </label>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  <label>
+                  <div className="field-group">
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Tipo de Despesa</span>
                     <select value={expenseType} onChange={e => setExpenseType(e.target.value as 'fixed' | 'variable')} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
                       <option value="variable">Variável</option>
@@ -717,9 +802,9 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                         ? 'Fixa: aluguel, internet, academia ou assinatura.' 
                         : 'Variável: mercado, lazer, compras ou delivery.'}
                     </div>
-                  </label>
+                  </div>
 
-                  <label>
+                  <div className="field-group">
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Tags</span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                       {tags.map(t => (
@@ -734,20 +819,20 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
                       <input type="text" placeholder="Adicionar tag (ex: carro)" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }} disabled={isPending} style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', color: 'var(--ink)' }} />
                       <button type="button" onClick={handleAddTag} disabled={isPending} className="btn-secondary" style={{ padding: '0 16px' }}>Add</button>
                     </div>
-                  </label>
+                  </div>
 
-                  <label>
+                  <div className="field-group">
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Observação (opcional)</span>
                     <textarea placeholder="Algum detalhe adicional..." value={notes} onChange={e => setNotes(e.target.value)} disabled={isPending} rows={2} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', color: 'var(--ink)', background: 'var(--surface)' }} />
-                  </label>
+                  </div>
 
-                  <label>
+                  <div className="field-group">
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Anexar arquivo</span>
                     <button type="button" disabled style={{ width: '100%', padding: '16px', background: 'var(--surface-2)', border: '1px dashed var(--line-soft)', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'not-allowed', color: 'var(--faint)' }}>
                       <Upload size={20} />
                       <span style={{ fontSize: 13, fontWeight: 600 }}>Anexos estarão disponíveis em breve</span>
                     </button>
-                  </label>
+                  </div>
 
                 </div>
               )}
@@ -762,7 +847,7 @@ export function PremiumExpenseModal({ expense, categories, accounts, creditCards
 
         {/* FOOTER */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', justifyContent: 'flex-end', gap: 12, background: 'var(--surface-2)' }}>
-          <button type="button" className="btn-ghost" onClick={onClose} disabled={isPending}>Cancelar</button>
+          <button type="button" className="btn-ghost" onClick={handleCloseWithAnimation} disabled={isPending}>Cancelar</button>
           <button type="button" className="btn-primary" style={{ background: 'var(--orange-ink)' }} onClick={handleSubmit} disabled={isPending}>
             {isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Salvar Despesa')}
           </button>

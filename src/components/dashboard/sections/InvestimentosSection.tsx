@@ -136,11 +136,7 @@ export function InvestimentosSection({ hidden }: { hidden: boolean }) {
 
   return (
     <div className="fd-stack fade-up">
-      <div className="topbar-inline">
-        <div>
-          <h2 className="section-title">Investimentos & Patrimônio</h2>
-          <p className="section-sub">Acompanhe a distribuição dos seus ativos e rentabilidade</p>
-        </div>
+      <div className="topbar-inline" style={{ justifyContent: 'flex-end' }}>
         <button className="btn-primary" onClick={openNewModal}>
           <Plus size={18} /> Novo ativo
         </button>

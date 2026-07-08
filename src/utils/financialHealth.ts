@@ -236,7 +236,7 @@ export function calculateIncomeHealthScore(
     description = 'Receita saudável e com boa previsibilidade.'
   } else if (score >= 60) {
     status = 'light_attention'
-    label = 'ATENÇÃO LEVE'
+    label = 'ESTÁVEL'
     description = 'Estável, mas com pontos de atenção.'
   } else if (score >= 40) {
     status = 'attention'

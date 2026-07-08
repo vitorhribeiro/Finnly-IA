@@ -1,6 +1,6 @@
 import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ChevronDown, Tag, Upload } from 'lucide-react'
+import { X, ChevronDown, Tag, Upload, Check, Clock, Plus } from 'lucide-react'
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { QuickCategoryModal, QuickAccountModal } from '@/components/ui/QuickModals'
@@ -45,6 +45,18 @@ function formatDateToBRL(isoStr: string) {
   return `${d}/${m}/${y}`
 }
 
+function getAmountWidth(val: string) {
+  if (!val) return 100
+  let width = 0
+  for (let i = 0; i < val.length; i++) {
+    const char = val[i]
+    if (char === ',' || char === '.') width += 10
+    else if (char === '1') width += 16
+    else width += 24
+  }
+  return Math.max(width + 10, 100)
+}
+
 function calculateInstallments(total: number, count: number): number[] {
   const base = Math.floor((total / count) * 100) / 100
   const remainder = Math.round((total - (base * count)) * 100) / 100
@@ -79,7 +91,7 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
   const isEdit = !!income && !!income.id
 
   const [amount, setAmount] = useState(() => {
-    if (income) return formatCurrencyInput(String(income.amount))
+    if (income) return Number(income.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return ''
   })
   const [paymentStatus, setPaymentStatus] = useState(income?.payment_status ?? true)
@@ -115,6 +127,14 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
   const [tags, setTags] = useState<string[]>(income?.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [notes, setNotes] = useState(income?.notes ?? '')
+  const [isClosing, setIsClosing] = useState(false)
+  
+  function handleCloseWithAnimation() {
+    setIsClosing(true)
+    setTimeout(() => {
+      onClose()
+    }, 280)
+  }
   
   const [showDetails, setShowDetails] = useState((income?.tags && income.tags.length > 0) || !!income?.notes)
   
@@ -124,6 +144,8 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
   // Quick modals
   const [showQuickCategory, setShowQuickCategory] = useState(false)
   const [showQuickAccount, setShowQuickAccount] = useState(false)
+  
+  const isAnyQuickModalOpen = showQuickCategory || showQuickAccount
 
   // Options
   const accountOptions = [
@@ -133,8 +155,7 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
   ]
 
   const categoryOptions = [
-    ...localCategories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color })),
-    { value: '__new_category__', label: '+ Nova categoria', icon: 'Plus', color: '#01584C' }
+    ...localCategories.map(c => ({ value: c.name, label: c.name, icon: c.icon, color: c.color }))
   ]
 
   const isToday = date === getTodayLocal()
@@ -200,7 +221,11 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
         ? await updateIncome(income.id, fd)
         : await addIncome(fd)
       if (res && 'error' in res) { setError(res.error ?? 'Erro desconhecido'); return }
-      onSaved()
+      
+      setIsClosing(true)
+      setTimeout(() => {
+        onSaved()
+      }, 280)
     })
   }
   
@@ -256,26 +281,174 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
 
   return createPortal(
     <>
-      <div className="modal-scrim" onClick={onClose} />
-      <div className="modal-box" style={{ maxWidth: 440, padding: 0, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes filterModalFadeUp {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -46%) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+        @keyframes filterModalFadeDown {
+          from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: translate(-50%, -46%) scale(0.96);
+          }
+        }
+        @keyframes scrimFadeIn {
+          from { opacity: 0; backdrop-filter: blur(0px); }
+          to { opacity: 1; backdrop-filter: blur(8px); }
+        }
+        @keyframes scrimFadeOut {
+          from { opacity: 1; backdrop-filter: blur(8px); }
+          to { opacity: 0; backdrop-filter: blur(0px); }
+        }
+        .filter-modal-animate {
+          animation: filterModalFadeUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .filter-modal-animate-out {
+          animation: filterModalFadeDown 0.28s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+        }
+        .scrim-animate {
+          animation: scrimFadeIn 0.3s ease forwards;
+        }
+        .scrim-animate-out {
+          animation: scrimFadeOut 0.25s ease forwards;
+        }
+        .premium-field-label {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .premium-field-label > span {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .premium-form-input {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 12px;
+          border: 1px solid var(--line-soft);
+          background: var(--surface-2);
+          font-size: 13px;
+          outline: none;
+          color: var(--ink);
+          font-weight: 600;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .premium-form-input:focus {
+          border-color: var(--teal) !important;
+          box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+        }
+        .form-error-custom {
+          color: #ef4444;
+          font-size: 12.5px;
+          font-weight: 600;
+          margin: 0;
+          padding: 8px 12px;
+          background: rgba(239, 68, 68, 0.08);
+          border-radius: 12px;
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        .premium-amount-input {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          background: transparent !important;
+          -webkit-appearance: none;
+          appearance: none;
+        }
+        .premium-amount-input:focus {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .payment-status-btn {
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .payment-status-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .payment-status-btn:active {
+          transform: translateY(0);
+        }
+      `}</style>
+      <div 
+        className={`modal-scrim scrim-animate ${isClosing ? 'scrim-animate-out' : ''}`}
+        onClick={handleCloseWithAnimation} 
+        style={{
+          zIndex: 99999,
+          background: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          display: isAnyQuickModalOpen ? 'none' : 'block'
+        }}
+      />
+      <div 
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          width: 'min(440px, calc(100vw - 32px))',
+          maxHeight: 'min(calc(100vh - 40px), 760px)',
+          background: 'var(--card)',
+          border: '1px solid var(--line-soft)',
+          borderRadius: 24,
+          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.12)',
+          display: isAnyQuickModalOpen ? 'none' : 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          zIndex: 100000,
+          color: 'var(--ink)'
+        }}
+        className={`filter-modal-animate ${isClosing ? 'filter-modal-animate-out' : ''}`}
+      >
         
         {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--line-soft)' }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
-            {isEdit ? 'Editar receita' : 'Nova receita'}
-          </h3>
-          <button className="icon-btn" onClick={onClose} disabled={isPending}><X size={18} /></button>
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--line-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card)' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>
+              {isEdit ? 'Editar Receita' : 'Nova Receita'}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>
+              {isEdit ? 'Edite os dados desta transação de entrada.' : 'Preencha os dados para registrar uma entrada.'}
+            </p>
+          </div>
+          <button 
+            onClick={handleCloseWithAnimation} 
+            disabled={isPending}
+            style={{ 
+              background: 'none', border: 'none', cursor: 'pointer', padding: 8, borderRadius: '50%', color: 'var(--muted)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--ink)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--muted)'; }}
+          >
+             <X size={18} style={{ strokeWidth: 2.5 }} />
+          </button>
         </div>
 
         {/* BODY */}
-        <div style={{ padding: '24px 20px', maxHeight: '70vh', overflowY: 'auto' }} className="fd-stack">
-          {error && <div className="form-error" style={{ marginBottom: 16 }}>{error}</div>}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }} className="hide-scrollbar">
+          {error && <div className="form-error-custom" style={{ marginBottom: 8 }}>{error}</div>}
 
           {/* VALOR NO TOPO */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--faint)' }}>Valor da Receita</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--muted)', marginTop: 4 }}>R$</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.05em' }}>Valor da Receita</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6 }}>
+              <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--muted)' }}>R$</span>
               <input 
                 type="text"
                 inputMode="numeric"
@@ -291,34 +464,64 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                 }}
                 disabled={isPending}
                 required
-                style={{ width: `${Math.max(amount.length, 4)}ch`, maxWidth: '100%', minWidth: 100, fontSize: 40, fontWeight: 900, border: 'none', background: 'transparent', outline: 'none', color: 'var(--teal)', textAlign: 'center', letterSpacing: '-0.02em', padding: 0 }}
+                className="premium-amount-input"
+                style={{ 
+                  width: `${getAmountWidth(amount || '0,00')}px`, 
+                  maxWidth: '100%', 
+                  fontSize: 44, 
+                  fontWeight: 900, 
+                  color: 'var(--teal)', 
+                  letterSpacing: '-0.02em', 
+                  padding: 0,
+                  textAlign: 'left'
+                }}
               />
             </div>
             
-            <label style={{ 
-              display: 'flex', alignItems: 'center', gap: 8, cursor: isPending ? 'default' : 'pointer',
-              background: paymentStatus ? 'rgba(4, 120, 87, 0.1)' : 'var(--surface-2)',
-              padding: '6px 12px', borderRadius: 20, marginTop: 4, transition: 'all 0.2s'
-            }}>
-              <input 
-                type="checkbox" 
-                checked={paymentStatus} 
-                onChange={e => setPaymentStatus(e.target.checked)} 
-                disabled={isPending}
-                style={{ width: 16, height: 16, accentColor: 'var(--teal)', cursor: isPending ? 'default' : 'pointer' }}
-              />
-              <span style={{ fontSize: 13, fontWeight: 700, color: paymentStatus ? 'var(--teal)' : 'var(--faint)' }}>
+            <button
+              type="button"
+              onClick={() => { if (!isPending) setPaymentStatus(!paymentStatus) }}
+              disabled={isPending}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: isPending ? 'default' : 'pointer',
+                background: paymentStatus ? 'rgba(1, 107, 76, 0.08)' : 'var(--surface-2)',
+                border: paymentStatus ? '1px solid rgba(1, 107, 76, 0.2)' : '1px solid var(--line-soft)',
+                padding: '8px 16px',
+                borderRadius: 24,
+                marginTop: 4,
+                color: paymentStatus ? 'var(--teal)' : 'var(--muted)',
+                fontWeight: 700,
+                fontSize: 13,
+                outline: 'none',
+                boxShadow: 'none',
+                alignSelf: 'center'
+              }}
+              className="payment-status-btn"
+            >
+              <span 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  transform: paymentStatus ? 'scale(1.1) rotate(0deg)' : 'scale(1) rotate(-10deg)',
+                  transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                }}
+              >
+                {paymentStatus ? <Check size={14} style={{ strokeWidth: 3 }} /> : <Clock size={14} style={{ strokeWidth: 2.5 }} />}
+              </span>
+              <span style={{ transition: 'all 0.3s ease' }}>
                 {paymentStatus ? 'Recebido' : 'Pendente'}
               </span>
-            </label>
+            </button>
           </div>
 
-          <div className="entry-form">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             
-            <label>
-              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span>Data prevista <span className="req">*</span></span>
-              </span>
+            <div className="premium-field-label">
+              <span>Data prevista <span style={{ color: '#ef4444' }}>*</span></span>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button 
                   type="button" 
@@ -329,10 +532,10 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                     padding: '10px 14px',
                     borderRadius: 12,
                     border: '1px solid',
-                    borderColor: isToday ? 'var(--teal)' : 'var(--border)',
+                    borderColor: isToday ? 'var(--teal)' : 'var(--line-soft)',
                     background: isToday ? 'rgba(1, 88, 76, 0.08)' : 'var(--surface-2)',
-                    color: isToday ? 'var(--teal)' : 'var(--muted)',
-                    fontWeight: 800,
+                    color: isToday ? 'var(--teal)' : 'var(--ink)',
+                    fontWeight: 700,
                     cursor: 'pointer',
                     fontSize: 13,
                     transition: 'all 0.2s'
@@ -349,10 +552,10 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                     padding: '10px 14px',
                     borderRadius: 12,
                     border: '1px solid',
-                    borderColor: isYesterday ? 'var(--teal)' : 'var(--border)',
+                    borderColor: isYesterday ? 'var(--teal)' : 'var(--line-soft)',
                     background: isYesterday ? 'rgba(1, 88, 76, 0.08)' : 'var(--surface-2)',
-                    color: isYesterday ? 'var(--teal)' : 'var(--muted)',
-                    fontWeight: 800,
+                    color: isYesterday ? 'var(--teal)' : 'var(--ink)',
+                    fontWeight: 700,
                     cursor: 'pointer',
                     fontSize: 13,
                     transition: 'all 0.2s'
@@ -370,10 +573,10 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                       padding: '10px 14px',
                       borderRadius: 12,
                       border: '1px solid',
-                      borderColor: isOther ? 'var(--teal)' : 'var(--border)',
+                      borderColor: isOther ? 'var(--teal)' : 'var(--line-soft)',
                       background: isOther ? 'rgba(1, 88, 76, 0.08)' : 'var(--surface-2)',
-                      color: isOther ? 'var(--teal)' : 'var(--muted)',
-                      fontWeight: 800,
+                      color: isOther ? 'var(--teal)' : 'var(--ink)',
+                      fontWeight: 700,
                       cursor: 'pointer',
                       fontSize: 13,
                       transition: 'all 0.2s',
@@ -398,28 +601,50 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                   </div>
                 </div>
               </div>
-            </label>
+            </div>
 
-            <label>
+            <div className="premium-field-label">
               <span>Descrição</span>
-              <input placeholder="Ex: Salário" value={description} onChange={e => setDescription(e.target.value)} disabled={isPending} />
-            </label>
+              <input className="premium-form-input" placeholder="Ex: Salário" value={description} onChange={e => setDescription(e.target.value)} disabled={isPending} />
+            </div>
 
-            <label>
-              <span>Categoria <span className="req">*</span></span>
+            <div className="premium-field-label">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Categoria <span style={{ color: '#ef4444' }}>*</span></span>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCategory(true)}
+                  disabled={isPending}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--teal)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: 0,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--teal-900)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--teal)'}
+                >
+                  <Plus size={12} style={{ strokeWidth: 3 }} /> Nova Categoria
+                </button>
+              </div>
               <CustomSelect
                 options={categoryOptions}
                 value={category}
-                onChange={val => {
-                  if (val === '__new_category__') setShowQuickCategory(true)
-                  else setCategory(val)
-                }}
+                onChange={setCategory}
                 placeholder="Selecione..."
               />
-            </label>
+            </div>
 
-            <label>
-              <span>Conta de destino {paymentStatus && <span className="req">*</span>}</span>
+            <div className="premium-field-label">
+              <span>Conta de destino {paymentStatus && <span style={{ color: '#ef4444' }}>*</span>}</span>
               <CustomSelect
                 options={accountOptions}
                 value={accountId}
@@ -429,12 +654,12 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                 }}
                 placeholder="Selecione..."
               />
-            </label>
+            </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
-              <label style={{ flex: 1 }}>
+              <div className="premium-field-label" style={{ flex: 1 }}>
                 <span>Tipo de entrada</span>
-                <select value={incomeType} onChange={e => setIncomeType(e.target.value as 'fixed' | 'variable')} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                <select className="premium-form-input" value={incomeType} onChange={e => setIncomeType(e.target.value as 'fixed' | 'variable')} disabled={isPending}>
                   <option value="variable">Variável</option>
                   <option value="fixed">Fixa</option>
                 </select>
@@ -443,11 +668,11 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                     ? 'Fixa: salário, aluguel recebido ou contrato mensal.' 
                     : 'Variável: freela, venda, bônus ou pix avulso.'}
                 </div>
-              </label>
+              </div>
 
-              <label style={{ flex: 1 }}>
+              <div className="premium-field-label" style={{ flex: 1 }}>
                 <span>Forma de recebimento</span>
-                <select value={incomeMethod} onChange={e => setIncomeMethod(e.target.value)} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                <select className="premium-form-input" value={incomeMethod} onChange={e => setIncomeMethod(e.target.value)} disabled={isPending}>
                   <option value="">Não informado</option>
                   <option value="pix">Pix</option>
                   <option value="transfer">Transferência</option>
@@ -457,12 +682,12 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                   <option value="card">Cartão</option>
                   <option value="other">Outros</option>
                 </select>
-              </label>
+              </div>
             </div>
 
-            <label>
+            <div className="premium-field-label">
               <span>Como lançar?</span>
-              <select value={repeatType} onChange={e => setRepeatType(e.target.value as 'single' | 'recurring' | 'installments')} disabled={isPending} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+              <select className="premium-form-input" value={repeatType} onChange={e => setRepeatType(e.target.value as 'single' | 'recurring' | 'installments')} disabled={isPending}>
                 <option value="single">Só uma vez</option>
                 <option value="recurring">Todo mês</option>
                 <option value="installments">Parcelado</option>
@@ -471,15 +696,15 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
               {repeatType === 'installments' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Qtd Parcelas:</span>
-                  <input type="number" min="2" max="99" value={installmentsTotal} onChange={e => setInstallmentsTotal(e.target.value)} disabled={isPending} style={{ width: 80, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)', color: 'var(--ink)' }} placeholder="Ex: 3" />
+                  <input className="premium-form-input" type="number" min="2" max="99" value={installmentsTotal} onChange={e => setInstallmentsTotal(e.target.value)} disabled={isPending} style={{ width: 80 }} placeholder="Ex: 3" />
                 </div>
               )}
-            </label>
+            </div>
             
             {renderInstallmentPreview()}
 
             {/* SANFONA MAIS DETALHES */}
-            <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 16 }}>
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 16 }}>
               <button 
                 type="button" 
                 onClick={() => setShowDetails(!showDetails)}
@@ -493,14 +718,14 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
               {showDetails && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
                   {/* TAGS */}
-                  <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Tags</span>
+                  <div className="premium-field-label">
+                    <span>Tags</span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                       {tags.map(t => (
-                        <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--surface-2)', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
-                          <Tag size={12} style={{ color: 'var(--muted)' }} />
+                        <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'rgba(1, 88, 76, 0.06)', color: 'var(--teal-900)', borderRadius: 16, fontSize: 11, fontWeight: 700 }}>
+                          <Tag size={12} style={{ color: 'var(--teal-900)' }} />
                           {t}
-                          <button type="button" onClick={() => setTags(tags.filter(x => x !== t))} disabled={isPending} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--faint)' }}><X size={12} /></button>
+                          <button type="button" onClick={() => setTags(tags.filter(x => x !== t))} disabled={isPending} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--teal-900)' }}><X size={12} /></button>
                         </div>
                       ))}
                     </div>
@@ -512,32 +737,56 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
                         onChange={e => setTagInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
                         disabled={isPending}
-                        style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', color: 'var(--ink)' }}
+                        className="premium-form-input"
+                        style={{ flex: 1 }}
                       />
-                      <button type="button" onClick={handleAddTag} disabled={isPending} className="btn-secondary" style={{ padding: '0 16px' }}>Add</button>
+                      <button 
+                        type="button" 
+                        onClick={handleAddTag} 
+                        disabled={isPending} 
+                        style={{ 
+                          padding: '10px 16px', 
+                          borderRadius: 12, 
+                          border: '1px solid var(--line-soft)', 
+                          background: 'var(--surface-2)', 
+                          color: 'var(--ink)', 
+                          fontWeight: 700, 
+                          fontSize: 13, 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        Add
+                      </button>
                     </div>
-                  </label>
+                  </div>
 
                   {/* OBSERVAÇÃO */}
-                  <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Observação (opcional)</span>
-                    <textarea placeholder="Algum detalhe adicional..." value={notes} onChange={e => setNotes(e.target.value)} disabled={isPending} rows={2} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)', color: 'var(--ink)', background: 'var(--surface)' }} />
-                  </label>
+                  <div className="premium-field-label">
+                    <span>Observação (opcional)</span>
+                    <textarea 
+                      placeholder="Algum detalhe adicional..." 
+                      value={notes} 
+                      onChange={e => setNotes(e.target.value)} 
+                      disabled={isPending} 
+                      rows={2} 
+                      className="premium-form-input"
+                    />
+                  </div>
 
                   {/* ANEXOS */}
-                  <label>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>Anexar arquivo</span>
-                    <button type="button" disabled style={{ width: '100%', padding: '16px', background: 'var(--surface-2)', border: '1px dashed var(--line-soft)', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'not-allowed', color: 'var(--faint)' }}>
+                  <div className="premium-field-label">
+                    <span>Anexar arquivo</span>
+                    <button type="button" disabled style={{ width: '100%', padding: '16px', background: 'var(--surface-2)', border: '1px dashed var(--line-soft)', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'not-allowed', color: 'var(--muted)' }}>
                       <Upload size={20} />
                       <span style={{ fontSize: 13, fontWeight: 600 }}>Anexos estarão disponíveis em breve</span>
                     </button>
-                  </label>
+                  </div>
 
                 </div>
               )}
             </div>
             
-            <div style={{ fontSize: 12, color: 'var(--teal)', textAlign: 'center', marginTop: 16, fontWeight: 700, padding: '10px 14px', background: 'rgba(4, 120, 87, 0.05)', borderRadius: 12, border: '1px solid rgba(4, 120, 87, 0.1)' }}>
+            <div style={{ fontSize: 12, color: 'var(--teal)', textAlign: 'center', marginTop: 16, fontWeight: 700, padding: '10px 14px', background: 'rgba(1, 88, 76, 0.05)', borderRadius: 12, border: '1px solid rgba(1, 88, 76, 0.1)' }}>
               {getPreviewText()}
             </div>
 
@@ -545,9 +794,33 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
         </div>
 
         {/* FOOTER */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', justifyContent: 'flex-end', gap: 12, background: 'var(--surface-2)' }}>
-          <button type="button" className="btn-ghost" onClick={onClose} disabled={isPending}>Cancelar</button>
-          <button type="button" className="btn-primary" style={{ background: 'var(--teal)' }} onClick={handleSubmit} disabled={isPending}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--line-soft)', display: 'flex', gap: 12, background: 'var(--card)' }}>
+          <button 
+            type="button" 
+            onClick={handleCloseWithAnimation} 
+            disabled={isPending}
+            style={{ 
+              flex: 1, padding: '12px', borderRadius: 12, border: '1px solid var(--line-soft)',
+              background: 'var(--card)', color: 'var(--ink)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--card)'}
+          >
+            Cancelar
+          </button>
+          <button 
+            type="button" 
+            onClick={handleSubmit} 
+            disabled={isPending}
+            style={{ 
+              flex: 1, padding: '12px', borderRadius: 12, border: 'none',
+              background: 'var(--teal-900)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--teal)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--teal-900)'}
+          >
             {isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Salvar Receita')}
           </button>
         </div>

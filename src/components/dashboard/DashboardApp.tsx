@@ -2129,27 +2129,45 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
 
   const getSubtitle = () => {
     const firstName = userName.split(' ')[0]
+    const renderGreeting = (subtitleText: string) => (
+      <div style={{
+        borderLeft: '2.5px solid var(--orange)',
+        paddingLeft: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+        marginTop: '10px'
+      }}>
+        <div style={{ fontSize: 17, color: 'var(--ink)', fontWeight: 500 }}>
+          Olá, <span style={{ fontWeight: 800, color: 'var(--teal-900)' }}>{firstName}</span>! 👋
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 500 }}>
+          {subtitleText}
+        </div>
+      </div>
+    )
+
     switch (active) {
       case 'home':
-        return `Olá, ${firstName}! Acompanhe o resumo da sua saúde financeira.`
+        return renderGreeting('Acompanhe o resumo da sua saúde financeira.')
       case 'receitas':
-        return `Olá, ${firstName}! Acompanhe suas entradas e projeções.`
+        return renderGreeting('Acompanhe suas entradas e projeções.')
       case 'despesas':
-        return `Olá, ${firstName}! Acompanhe seus gastos e analise riscos.`
+        return renderGreeting('Acompanhe seus gastos e analise riscos.')
       case 'accounts':
-        return `Olá, ${firstName}! Gerencie suas contas bancárias e saldos.`
+        return renderGreeting('Gerencie suas contas bancárias e saldos.')
       case 'cards':
-        return `Olá, ${firstName}! Controle seus cartões de crédito e limites.`
+        return renderGreeting('Controle seus cartões de crédito e limites.')
       case 'invest':
-        return `Olá, ${firstName}! Monitore seus investimentos e evolução patrimonial.`
+        return renderGreeting('Monitore seus investimentos e evolução patrimonial.')
       case 'goals':
-        return `Olá, ${firstName}! Acompanhe suas metas de médio e longo prazo.`
+        return renderGreeting('Acompanhe suas metas de médio e longo prazo.')
       case 'reports':
-        return `Olá, ${firstName}! Veja relatórios detalhados e insights inteligentes.`
+        return renderGreeting('Veja relatórios detalhados e insights inteligentes.')
       case 'ai':
-        return `Olá, ${firstName}! Converse com a inteligência artificial do Finnly.`
+        return renderGreeting('Converse com a inteligência artificial do Finnly.')
       default:
-        return `Olá, ${firstName}! Bem-vindo de volta.`
+        return renderGreeting('Bem-vindo de volta.')
     }
   }
 
@@ -2366,14 +2384,35 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
       {/* MAIN */}
       <main className="main">
         <div className="main-inner">
-          {/* TOPBAR */}
-          <div className="topbar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, marginBottom: 24, height: 'auto' }}>
+          <div className="topbar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16, marginBottom: active === 'home' ? 32 : 16, height: 'auto' }}>
             <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
-              <div className="tb-hello" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div className="tb-date" style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {dateFormatted}
+              <div className="tb-hello" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="tb-date" style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8, 
+                  fontSize: 11, 
+                  fontWeight: 700, 
+                  color: 'var(--muted)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.08em' 
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    width: 28, 
+                    height: 28, 
+                    borderRadius: '50%', 
+                    background: '#FFFFFF', 
+                    border: '1px solid var(--line-soft)', 
+                    boxShadow: '0 2px 6px rgba(13, 61, 55, 0.03)' 
+                  }}>
+                    <Calendar size={13} style={{ color: 'var(--orange)' }} />
+                  </div>
+                  <span>{dateFormatted}</span>
                 </div>
-                <div className="tb-title" style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 28, fontWeight: 800, color: 'var(--ink)', margin: 0, lineHeight: 1.1 }}>
+                <div className="tb-title" style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 30, fontWeight: 800, color: 'var(--teal-900)', margin: '4px 0 0 0', lineHeight: 1.1 }}>
                   {active === 'home' ? 'Início' : activeLabel}
                   {active === 'home' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 14 }}>
@@ -2412,9 +2451,7 @@ export function DashboardApp({ userName, userInitial, dashboardData, selectedMon
                     </div>
                   )}
                 </div>
-                <div className="tb-subtitle" style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginTop: 2 }}>
-                  {getSubtitle()}
-                </div>
+                {getSubtitle()}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>

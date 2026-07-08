@@ -22,7 +22,14 @@ function brl(n: number) {
 }
 
 function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (!d) return ''
+  const cleanStr = d.slice(0, 10)
+  const [y, m, day] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, day)
+  const dd = String(dateObj.getDate()).padStart(2, '0')
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const yyyy = dateObj.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 
 function getMonthLabel(ym: string) {
@@ -33,13 +40,7 @@ function getMonthLabel(ym: string) {
 }
 
 function formatShortDate(dStr: string) {
-  if (!dStr) return ''
-  const cleanStr = dStr.slice(0, 10)
-  const [y, m, d] = cleanStr.split('-').map(Number)
-  const dateObj = new Date(y, m - 1, d)
-  const day = String(dateObj.getDate()).padStart(2, '0')
-  const month = dateObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-  return `${day} ${month}`
+  return formatDate(dStr)
 }
 
 function formatMainDate(dStr: string) {
@@ -413,13 +414,17 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         d.setMonth(d.getMonth() - 1)
         if (inc.date.slice(0, 7) !== d.toISOString().slice(0, 7)) return false
       } else if (filterState.period === 'last_7') {
+        const todayStr = new Date().toISOString().slice(0, 10)
         const d = new Date()
         d.setDate(d.getDate() - 7)
-        if (inc.date < d.toISOString().slice(0, 10)) return false
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
       } else if (filterState.period === 'last_30') {
+        const todayStr = new Date().toISOString().slice(0, 10)
         const d = new Date()
         d.setDate(d.getDate() - 30)
-        if (inc.date < d.toISOString().slice(0, 10)) return false
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
       } else if (filterState.period === 'custom' && filterState.customDateStart && filterState.customDateEnd) {
         if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
       }
@@ -491,10 +496,32 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const activeFilterCount = Object.values(filterState).filter(v => v && v !== 'all' && v !== 'global' && v !== 'newest' && (!Array.isArray(v) || v.length > 0)).length
 
   // Pagination calculations
-  const ITEMS_PER_PAGE = 7
+  const ITEMS_PER_PAGE = 4
   const totalItems = filteredIncomes.length
   const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
   const activePage = Math.min(currentPage, totalPages)
+
+  const pageNumbers = useMemo(() => {
+    const pages = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      pages.push(1)
+      if (activePage > 3) pages.push('ellipsis')
+      
+      const start = Math.max(2, activePage - 1)
+      const end = Math.min(totalPages - 1, activePage + 1)
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+      
+      if (activePage < totalPages - 2) pages.push('ellipsis')
+      pages.push(totalPages)
+    }
+    return pages
+  }, [totalPages, activePage])
 
   const paginatedIncomes = useMemo(() => {
     const start = (activePage - 1) * ITEMS_PER_PAGE
@@ -546,7 +573,14 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       {/* --- PRIMEIRA DOBRA: GRID PRINCIPAL --- */}
       <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
         <div className="receitas-main-col" style={{ height: '100%' }}>
-      <section id="detalhamento-entradas" className="card fade-up" style={{ padding: 0, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <section id="detalhamento-entradas" className="card fade-up" style={{ 
+        padding: 0, 
+        overflow: 'hidden', 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        borderTop: '3px solid var(--teal)'
+      }}>
         <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
@@ -664,11 +698,57 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           {activeFilterCount > 0 && (
             <div style={{ display: 'flex', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>Filtros ativos:</span>
-              {filterState.period !== 'global' && <div className="filter-pill">Período: {filterState.period}</div>}
-              {filterState.categoryId !== 'all' && <div className="filter-pill">Categoria</div>}
-              {filterState.transactionType !== 'all' && <div className="filter-pill">Tipo</div>}
-              {filterState.tags && filterState.tags.length > 0 && <div className="filter-pill">Tags</div>}
-              {(filterState.minAmount || filterState.maxAmount) && <div className="filter-pill">Valor</div>}
+              {filterState.period !== 'global' && (
+                <div className="filter-pill">
+                  Período: {
+                    filterState.period === 'this_month' ? 'Este mês' :
+                    filterState.period === 'last_month' ? 'Mês passado' :
+                    filterState.period === 'last_7' ? 'Últimos 7 dias' :
+                    filterState.period === 'last_30' ? 'Últimos 30 dias' :
+                    filterState.period === 'custom' ? 'Personalizado' :
+                    filterState.period
+                  }
+                </div>
+              )}
+              {filterState.categoryId !== 'all' && (
+                <div className="filter-pill">
+                  Categoria: {categories.find(c => c.id === filterState.categoryId)?.name || filterState.categoryId}
+                </div>
+              )}
+              {filterState.accountId && filterState.accountId !== 'all' && (
+                <div className="filter-pill">
+                  Conta: {accounts.find(a => a.id === filterState.accountId)?.name || filterState.accountId}
+                </div>
+              )}
+              {filterState.paymentMethod && filterState.paymentMethod !== 'all' && (
+                <div className="filter-pill">
+                  Método: {
+                    filterState.paymentMethod === 'pix' ? 'Pix' :
+                    filterState.paymentMethod === 'boleto' ? 'Boleto' :
+                    filterState.paymentMethod === 'credit_card' ? 'Cartão de Crédito' :
+                    filterState.paymentMethod === 'money' ? 'Dinheiro' :
+                    filterState.paymentMethod === 'transfer' ? 'Transferência' :
+                    filterState.paymentMethod === 'deposit' ? 'Depósito' :
+                    filterState.paymentMethod === 'other' ? 'Outro' :
+                    filterState.paymentMethod
+                  }
+                </div>
+              )}
+              {filterState.transactionType !== 'all' && (
+                <div className="filter-pill">
+                  Tipo: {filterState.transactionType === 'fixed' ? 'Fixa' : 'Variável'}
+                </div>
+              )}
+              {filterState.tags && filterState.tags.length > 0 && (
+                <div className="filter-pill">
+                  Tags: {filterState.tags.join(', ')}
+                </div>
+              )}
+              {(filterState.minAmount || filterState.maxAmount) && (
+                <div className="filter-pill">
+                  Valor: {filterState.minAmount ? `>= R$ ${filterState.minAmount}` : ''} {filterState.maxAmount ? `<= R$ ${filterState.maxAmount}` : ''}
+                </div>
+              )}
               <button style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--orange)', cursor: 'pointer', fontWeight: 600, padding: '2px 6px' }} onClick={() => setFilterState(defaultFilterState)}>Limpar</button>
             </div>
           )}
@@ -706,15 +786,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <div className="premium-list-container">
               {/* Header (desktop/tablet only) */}
               <div className="premium-table-header desktop-tablet-only">
-                <div className="col-sit">Situação</div>
-                <div className="col-date sortable" onClick={() => setFilterState(prev => ({ ...prev, order: prev.order === 'newest' ? 'oldest' : 'newest' }))}>
-                  Data {filterState.order === 'newest' ? '↓' : filterState.order === 'oldest' ? '↑' : ''}
-                </div>
+                <div className="col-sit" style={{ textAlign: 'center' }}>Situação</div>
                 <div className="col-desc">Descrição</div>
                 <div className="col-cat" style={{ textAlign: 'center' }}>Categoria</div>
-                <div className="col-acc">Conta</div>
-                <div className="col-val" style={{ textAlign: 'right' }}>Valor</div>
-                <div className="col-actions" style={{ textAlign: 'right' }}>Ações</div>
+                <div className="col-acc" style={{ textAlign: 'center' }}>Conta</div>
+                <div className="col-val" style={{ textAlign: 'center' }}>Valor</div>
+                <div className="col-actions"></div>
               </div>
 
               <div className="premium-rows-container">
@@ -733,12 +810,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                           const account = accounts.find(a => a.id === item.account_id)
                           
                           // details for subtext
-                          const subParts: string[] = []
-                          if (item.is_recurring) subParts.push('Recorrente')
-                          if (item.installment_number && item.installments_total) {
-                            subParts.push(`Parcela ${item.installment_number}/${item.installments_total}`)
-                          }
-                          const descriptionSubtext = subParts.join(' · ')
+                          const descriptionSubtext = status === 'paid' 
+                            ? `Recebido em ${item.received_at ? formatShortDate(item.received_at) : formatShortDate(item.date)}` 
+                            : status === 'overdue' 
+                              ? `Venceu em ${formatShortDate(item.date)}` 
+                              : `Previsto para ${formatShortDate(item.date)}`
                           
                           let valSub = ''
                           if (item.installment_number) valSub = `Parcela ${item.installment_number}/${item.installments_total}`
@@ -748,19 +824,29 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                             <div key={item.id}>
                               {/* Desktop/Tablet Row */}
                               <div className="premium-table-row desktop-tablet-only">
-                                <div className="cell-sit">
+                                <div className="cell-sit" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
                                   <span className={`status-badge ${status}`}>
                                     {status === 'paid' && '✓ Recebido'}
                                     {status === 'pending' && '○ Pendente'}
                                     {status === 'overdue' && '! Atrasado'}
                                   </span>
-                                </div>
-                                <div className="cell-date">
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{formatShortDate(item.date)}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                    {status === 'paid' ? `Recebido em ${item.received_at ? formatShortDate(item.received_at) : formatShortDate(item.date)}` :
-                                     status === 'overdue' ? `Venceu em ${formatShortDate(item.date)}` : `Previsto para ${formatShortDate(item.date)}`}
-                                  </div>
+                                  <span 
+                                    style={{ 
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      fontSize: '9px', 
+                                      fontWeight: 800,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em',
+                                      padding: '2px 6px',
+                                      borderRadius: '6px',
+                                      background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
+                                      color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
+                                      border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
+                                    }}
+                                  >
+                                    {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                  </span>
                                 </div>
                                 <div className="cell-desc">
                                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
@@ -775,25 +861,34 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                                      <span className="category-dot" style={{ backgroundColor: catColor }} />
                                      {item.category}
                                    </span>
-                                   <span 
-                                     style={{ 
-                                       display: 'inline-flex',
-                                       alignItems: 'center',
-                                       fontSize: '9px', 
-                                       fontWeight: 800,
-                                       textTransform: 'uppercase',
-                                       letterSpacing: '0.05em',
-                                       padding: '2px 6px',
-                                       borderRadius: '6px',
-                                       background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
-                                       color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
-                                       border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
-                                     }}
-                                   >
-                                     {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
-                                   </span>
+                                   {item.income_method && (
+                                    <span 
+                                      style={{ 
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        fontSize: '9px', 
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        padding: '2px 6px',
+                                        borderRadius: '6px',
+                                        background: 'rgba(94, 111, 105, 0.05)',
+                                        color: 'var(--muted)',
+                                        border: '1px solid rgba(94, 111, 105, 0.12)'
+                                      }}
+                                    >
+                                      {item.income_method === 'pix' ? 'Pix' :
+                                       item.income_method === 'transfer' ? 'Transferência' :
+                                       item.income_method === 'cash' ? 'Dinheiro' :
+                                       item.income_method === 'boleto' ? 'Boleto' :
+                                       item.income_method === 'deposit' ? 'Depósito' :
+                                       item.income_method === 'card' ? 'Cartão' :
+                                       item.income_method === 'other' ? 'Outro' :
+                                       item.income_method}
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="cell-acc">
+                                <div className="cell-acc" style={{ display: 'flex', justifyContent: 'center' }}>
                                   {item.account_id ? (
                                     account ? (
                                       <span className="account-badge active">{account.name}</span>
@@ -804,7 +899,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                                     <span className={`account-badge ${status !== 'paid' ? 'warning' : 'muted'}`}>Sem conta</span>
                                   )}
                                 </div>
-                                <div className="cell-val" style={{ textAlign: 'right' }}>
+                                <div className="cell-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                                   <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 700, color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)' }}>
                                     + R$ {brl(Number(item.amount))}
                                   </div>
@@ -1017,27 +1112,45 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         {totalPages > 1 && (
           <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'rgba(0,0,0,0.01)' }}>
             <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
-              Mostrando {Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(totalItems, activePage * ITEMS_PER_PAGE)} de {totalItems}
+              Mostrando {Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(totalItems, activePage * ITEMS_PER_PAGE)} de {totalItems} receitas
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button 
-                className="icon-btn" 
+                className="pagination-btn" 
                 disabled={activePage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                style={{ width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: 'none', cursor: activePage === 1 ? 'not-allowed' : 'pointer', opacity: activePage === 1 ? 0.5 : 1 }}
+                title="Página anterior"
               >
-                <ChevronLeft size={14} color="var(--ink)" />
+                <ChevronLeft size={15} />
               </button>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--teal-900)', minWidth: 60, textAlign: 'center' }}>
-                {activePage} / {totalPages}
-              </span>
+              
+              {pageNumbers.map((page, index) => {
+                if (page === 'ellipsis') {
+                  return (
+                    <span key={`ellipsis-${index}`} className="pagination-ellipsis">
+                      ...
+                    </span>
+                  )
+                }
+                
+                return (
+                  <button
+                    key={page}
+                    className={`pagination-btn ${activePage === page ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page as number)}
+                  >
+                    {page}
+                  </button>
+                )
+              })}
+
               <button 
-                className="icon-btn" 
+                className="pagination-btn" 
                 disabled={activePage === totalPages}
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                style={{ width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: 'none', cursor: activePage === totalPages ? 'not-allowed' : 'pointer', opacity: activePage === totalPages ? 0.5 : 1 }}
+                title="Próxima página"
               >
-                <ChevronRight size={14} color="var(--ink)" />
+                <ChevronRight size={15} />
               </button>
             </div>
           </div>
@@ -1049,9 +1162,68 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             flex-direction: column;
             width: 100%;
           }
+          /* Pagination styles */
+          .pagination-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid var(--line-soft);
+            font-family: inherit;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            vertical-align: middle !important;
+            align-self: center !important;
+            transform: translateY(0);
+          }
+          .pagination-btn:hover:not(:disabled) {
+            background: rgba(13, 61, 55, 0.05);
+            color: var(--teal-900);
+            border-color: rgba(13, 61, 55, 0.2);
+            transform: translateY(-1px);
+          }
+          .pagination-btn.active {
+            background: var(--teal-900);
+            color: white !important;
+            border-color: var(--teal-900) !important;
+            box-shadow: 0 4px 12px rgba(13, 61, 55, 0.18);
+            transform: translateY(0) !important;
+          }
+          .pagination-btn.active:hover {
+            transform: translateY(0) !important;
+            background: var(--teal-900);
+            border-color: var(--teal-900) !important;
+            color: white !important;
+          }
+          .pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: var(--surface-2);
+            border-color: var(--line-soft);
+            color: var(--muted);
+          }
+          .pagination-ellipsis {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+          }
           .premium-table-header {
             display: grid;
-            grid-template-columns: 100px 100px 1.8fr 1.2fr 1.2fr 100px 120px;
+            grid-template-columns: 100px 2.2fr 1.2fr 1.2fr 100px 120px;
             gap: 12px;
             align-items: center;
             padding: 12px;
@@ -1113,15 +1285,33 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           }
           .premium-table-row {
             display: grid;
-            grid-template-columns: 100px 100px 1.8fr 1.2fr 1.2fr 100px 120px;
+            grid-template-columns: 100px 2.2fr 1.2fr 1.2fr 100px 120px;
             gap: 12px;
             align-items: center;
             padding: 14px 12px;
             border-bottom: 1px solid var(--line-soft);
-            transition: background-color 0.2s ease;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+          }
+          .premium-table-row::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 4px;
+            bottom: 4px;
+            width: 3px;
+            background: linear-gradient(to bottom, var(--teal), var(--teal-900));
+            border-radius: 0 4px 4px 0;
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.2s ease;
           }
           .premium-table-row:hover {
-            background-color: rgba(1, 88, 76, 0.02);
+            background-color: rgba(1, 88, 76, 0.03);
+            padding-left: 18px;
+          }
+          .premium-table-row:hover::before {
+            transform: scaleX(1);
           }
           .status-badge {
             display: inline-flex;
@@ -1132,18 +1322,22 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             padding: 4px 8px;
             border-radius: 12px;
             white-space: nowrap;
+            border: 1px solid transparent;
           }
           .status-badge.paid {
             color: var(--green);
-            background: rgba(40,167,69,0.08);
+            background: rgba(40,167,69,0.06);
+            border-color: rgba(40,167,69,0.15);
           }
           .status-badge.pending {
             color: #A06E00;
-            background: rgba(255,179,0,0.08);
+            background: rgba(255,179,0,0.06);
+            border-color: rgba(255,179,0,0.15);
           }
           .status-badge.overdue {
             color: var(--neg);
-            background: rgba(239,68,68,0.08);
+            background: rgba(239,68,68,0.06);
+            border-color: rgba(239,68,68,0.15);
           }
           .category-badge {
             display: inline-flex;
@@ -1397,10 +1591,10 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           }
           @media (min-width: 768px) and (max-width: 1023px) {
             .premium-table-header {
-              grid-template-columns: 100px 100px 1.8fr 100px 120px;
+              grid-template-columns: 100px 2.2fr 100px 120px;
             }
             .premium-table-row {
-              grid-template-columns: 100px 100px 1.8fr 100px 120px;
+              grid-template-columns: 100px 2.2fr 100px 120px;
             }
             .col-cat, .col-acc, .cell-cat, .cell-acc {
               display: none !important;
@@ -1408,6 +1602,21 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             .tablet-only-inline {
               display: inline;
             }
+          }
+
+          /* Premium Transitions & Animations */
+          :global(.card) {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+          }
+          :global(.card:hover) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(1, 88, 76, 0.05);
+            border-color: rgba(1, 88, 76, 0.15);
+          }
+
+          @keyframes pulse-soft {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
           }
         `}</style>
       </section>
@@ -1430,10 +1639,10 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 R$ {brl(totalPeriodo)}
               </div>
               
-              <div className="compact-progress-bar premium-bar">
-                {propRecebido > 0 && <div style={{ width: `max(5px, ${propRecebido}%)`, backgroundColor: 'var(--green)' }} />}
-                {propPendente > 0 && <div style={{ width: `max(5px, ${propPendente}%)`, backgroundColor: 'var(--gold)' }} />}
-                {propAtrasado > 0 && <div style={{ width: `max(5px, ${propAtrasado}%)`, backgroundColor: 'var(--neg)' }} />}
+              <div className="compact-progress-bar premium-bar" style={{ height: 8, gap: 3, background: 'var(--surface-2)', overflow: 'visible' }}>
+                {propRecebido > 0 && <div style={{ width: `${propRecebido}%`, background: 'linear-gradient(90deg, #10B981, #059669)', borderRadius: 4, height: '100%', transition: 'width 0.5s ease' }} />}
+                {propPendente > 0 && <div style={{ width: `${propPendente}%`, background: 'linear-gradient(90deg, #FBBF24, #D97706)', borderRadius: 4, height: '100%', transition: 'width 0.5s ease' }} />}
+                {propAtrasado > 0 && <div style={{ width: `${propAtrasado}%`, background: 'linear-gradient(90deg, #EF4444, #DC2626)', borderRadius: 4, height: '100%', transition: 'width 0.5s ease' }} />}
               </div>
               
               <div className="compact-card-subtitle period-legend">
@@ -1497,8 +1706,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
               </div>
 
-              <div className="compact-progress-bar premium-bar">
-                <div style={{ width: `max(4px, ${pctBar}%)`, height: '100%', background: realizacaoState.color, borderRadius: 3 }} />
+              <div className="compact-progress-bar premium-bar" style={{ height: 8, background: 'var(--surface-2)' }}>
+                <div style={{ width: `${pctBar}%`, height: '100%', background: `linear-gradient(90deg, ${realizacaoState.color}, var(--teal))`, borderRadius: 4, transition: 'width 0.5s ease' }} />
               </div>
 
               <div className="compact-card-subtitle period-legend">
@@ -1547,7 +1756,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {/* Circular Gauge */}
                 <div style={{ width: 76, height: 76, position: 'relative', flexShrink: 0 }}>
-                  <svg viewBox="0 0 76 76" style={{ width: 76, height: 76, transform: 'rotate(-90deg)' }}>
+                  <svg viewBox="0 0 76 76" style={{ width: 76, height: 76, transform: 'rotate(-90deg)', filter: 'drop-shadow(0px 2px 6px rgba(1, 107, 76, 0.15))' }}>
                     <circle cx="38" cy="38" r="31" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
                     <circle 
                       cx="38" cy="38" r="31" fill="none" 
@@ -1555,6 +1764,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                       strokeDasharray="194.78"
                       strokeDashoffset={`${194.78 * (1 - saudeMetrics.score / 100)}`}
                       strokeLinecap="round"
+                      style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
                     />
                   </svg>
                   <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
@@ -1962,10 +2172,36 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           </div>
         </div>
         <div className="col-4">
-          <div className="card" style={{ height: '100%', padding: '24px', background: 'linear-gradient(145deg, #ffffff, #f2f9f8)', border: '1px solid var(--teal)', boxShadow: '0 8px 24px rgba(1,88,76,0.08)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div className="card" style={{ 
+            height: '100%', 
+            padding: '24px', 
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #EBF7F4 100%)', 
+            border: '1.5px solid rgba(1, 107, 76, 0.25)', 
+            boxShadow: '0 8px 32px rgba(1, 107, 76, 0.06)', 
+            display: 'flex', 
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Soft ambient glow effect in the corner */}
+            <div style={{
+              position: 'absolute',
+              top: '-40px',
+              right: '-40px',
+              width: '120px',
+              height: '120px',
+              background: 'radial-gradient(circle, rgba(1, 107, 76, 0.08) 0%, rgba(1, 107, 76, 0) 70%)',
+              pointerEvents: 'none'
+            }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, position: 'relative', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'var(--teal)', padding: 8, borderRadius: 10, boxShadow: '0 4px 12px rgba(1,88,76,0.2)' }}>
+                <div style={{ 
+                  background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-900) 100%)', 
+                  padding: 8, 
+                  borderRadius: 10, 
+                  boxShadow: '0 4px 12px rgba(1,88,76,0.2)',
+                  animation: 'pulse-soft 2s infinite ease-in-out'
+                }}>
                   <Sparkles size={18} color="white" />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--teal-900)' }}>FINNLY IA</span>

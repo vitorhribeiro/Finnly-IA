@@ -22,7 +22,14 @@ function brl(n: number) {
 }
 
 function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (!d) return ''
+  const cleanStr = d.slice(0, 10)
+  const [y, m, day] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, day)
+  const dd = String(dateObj.getDate()).padStart(2, '0')
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const yyyy = dateObj.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 
 function getMonthLabel(ym: string) {
@@ -155,13 +162,17 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
         d.setMonth(d.getMonth() - 1)
         if (inc.date.slice(0, 7) !== d.toISOString().slice(0, 7)) return false
       } else if (filterState.period === 'last_7') {
+        const todayStr = new Date().toISOString().slice(0, 10)
         const d = new Date()
         d.setDate(d.getDate() - 7)
-        if (inc.date < d.toISOString().slice(0, 10)) return false
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
       } else if (filterState.period === 'last_30') {
+        const todayStr = new Date().toISOString().slice(0, 10)
         const d = new Date()
         d.setDate(d.getDate() - 30)
-        if (inc.date < d.toISOString().slice(0, 10)) return false
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
       } else if (filterState.period === 'custom' && filterState.customDateStart && filterState.customDateEnd) {
         if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
       }
@@ -566,13 +577,48 @@ export function DespesasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           {activeFilterCount > 0 && (
             <div style={{ display: 'flex', gap: 8, padding: '12px 0', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>Filtros ativos:</span>
-              {filterState.period !== 'global' && <div className="filter-pill">Período: {filterState.period}</div>}
-              {filterState.categoryId !== 'all' && <div className="filter-pill">Categoria</div>}
-              {filterState.accountId !== 'all' && <div className="filter-pill">Conta</div>}
-              {filterState.creditCardId !== 'all' && <div className="filter-pill">Cartão</div>}
-              {filterState.transactionType !== 'all' && <div className="filter-pill">Tipo</div>}
-              {filterState.tags && filterState.tags.length > 0 && <div className="filter-pill">Tags</div>}
-              {(filterState.minAmount || filterState.maxAmount) && <div className="filter-pill">Valor</div>}
+              {filterState.period !== 'global' && (
+                <div className="filter-pill">
+                  Período: {
+                    filterState.period === 'this_month' ? 'Este mês' :
+                    filterState.period === 'last_month' ? 'Mês passado' :
+                    filterState.period === 'last_7' ? 'Últimos 7 dias' :
+                    filterState.period === 'last_30' ? 'Últimos 30 dias' :
+                    filterState.period === 'custom' ? 'Personalizado' :
+                    filterState.period
+                  }
+                </div>
+              )}
+              {filterState.categoryId !== 'all' && (
+                <div className="filter-pill">
+                  Categoria: {categories.find(c => c.id === filterState.categoryId)?.name || filterState.categoryId}
+                </div>
+              )}
+              {filterState.accountId !== 'all' && (
+                <div className="filter-pill">
+                  Conta: {accounts.find(a => a.id === filterState.accountId)?.name || filterState.accountId}
+                </div>
+              )}
+              {filterState.creditCardId !== 'all' && (
+                <div className="filter-pill">
+                  Cartão: {creditCards.find(c => c.id === filterState.creditCardId)?.name || filterState.creditCardId}
+                </div>
+              )}
+              {filterState.transactionType !== 'all' && (
+                <div className="filter-pill">
+                  Tipo: {filterState.transactionType === 'fixed' ? 'Fixa' : 'Variável'}
+                </div>
+              )}
+              {filterState.tags && filterState.tags.length > 0 && (
+                <div className="filter-pill">
+                  Tags: {filterState.tags.join(', ')}
+                </div>
+              )}
+              {(filterState.minAmount || filterState.maxAmount) && (
+                <div className="filter-pill">
+                  Valor: {filterState.minAmount ? `>= R$ ${filterState.minAmount}` : ''} {filterState.maxAmount ? `<= R$ ${filterState.maxAmount}` : ''}
+                </div>
+              )}
               <button style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--orange)', cursor: 'pointer', fontWeight: 600, padding: '2px 8px' }} onClick={() => setFilterState(defaultFilterState)}>Limpar</button>
               
               <style jsx>{`

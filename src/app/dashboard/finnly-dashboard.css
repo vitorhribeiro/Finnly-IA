@@ -408,7 +408,7 @@
 
 /* ---------- Main ---------- */
 .main { min-width: 0; display: flex; flex-direction: column; }
-.main-inner { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 22px 30px 60px; }
+.main-inner { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 42px 30px 60px; }
 
 /* ---------- Topbar ---------- */
 .topbar { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
@@ -720,7 +720,14 @@
 /* ============================================================ CRUD SECTIONS */
 
 /* Section header with title + action button */
-.topbar-inline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.topbar-inline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+@media (min-width: 768px) {
+  .topbar-inline {
+    margin-top: -58px;
+    position: relative;
+    z-index: 5;
+  }
+}
 .section-title { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
 .section-sub { margin: 0; color: var(--muted); font-size: 14px; }
 
@@ -2451,6 +2458,9 @@
   box-shadow: 0 10px 30px -12px rgba(13,61,55,.14), 0 2px 4px rgba(13,61,55,.01) !important;
   border-color: rgba(1, 88, 76, 0.14) !important;
 }
+#detalhamento-entradas {
+  border-top: 3px solid var(--teal) !important;
+}
 .hover-row {
   transition: background-color 0.18s ease !important;
 }
@@ -3448,6 +3458,13 @@ input:focus, select:focus, textarea:focus {
   max-height: 180px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.02);
   position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compact-insight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(1, 88, 76, 0.06);
+  border-color: rgba(1, 107, 76, 0.25);
 }
 
 .compact-card-header {
@@ -3543,6 +3560,13 @@ input:focus, select:focus, textarea:focus {
   padding: 24px 24px 22px 24px; /* Mais respiro */
   min-height: 165px;
   max-height: none; /* Removendo max-height estrito para evitar que o footer vaze */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.period-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(1, 88, 76, 0.08);
+  border-color: rgba(1, 107, 76, 0.3);
 }
 
 .compact-insight-footer {

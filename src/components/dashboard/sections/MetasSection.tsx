@@ -12,7 +12,13 @@ function brl(n: number) {
 
 function formatDate(d: string | null) {
   if (!d) return ''
-  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+  const cleanStr = d.slice(0, 10)
+  const [y, m, day] = cleanStr.split('-').map(Number)
+  const dateObj = new Date(y, m - 1, day)
+  const dd = String(dateObj.getDate()).padStart(2, '0')
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const yyyy = dateObj.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 
 const GOAL_COLORS = [

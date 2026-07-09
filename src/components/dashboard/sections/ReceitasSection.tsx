@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition, useMemo } from 'react'
 import {
   Plus, X, Pencil, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
   ArrowDown, Search, Filter, CalendarClock, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
-  HeartPulse, Wallet, MoreHorizontal, Trash2, Check
+  HeartPulse, Wallet, MoreHorizontal, Trash2, Check, Calendar, Shield,
+  ShoppingCart, User, Globe, PiggyBank, Coins, DollarSign, CalendarDays
 } from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
@@ -121,6 +122,22 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
   // State to track active menu row
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+
+  // Group collapsing state
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+
+  // Focus search input on keyboard "/" key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault()
+        const input = document.getElementById('search-incomes-input')
+        input?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const [isPending, startTransition] = useTransition()
 
@@ -495,6 +512,221 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
   const activeFilterCount = Object.values(filterState).filter(v => v && v !== 'all' && v !== 'global' && v !== 'newest' && (!Array.isArray(v) || v.length > 0)).length
 
+  // Counts for each filter tab (Todas, Recebidas, Pendentes, Atrasadas)
+  const tabCounts = useMemo(() => {
+    const baseItems = allIncomes.filter(inc => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const desc = (inc.description || '').toLowerCase()
+        const cat = inc.category.toLowerCase()
+        if (!desc.includes(q) && !cat.includes(q)) return false
+      }
+      
+      if (filterState.period === 'global') {
+        if (inc.date.slice(0, 7) !== selectedMonth) return false
+      } else if (filterState.period === 'this_month') {
+        const ym = new Date().toISOString().slice(0, 7)
+        if (inc.date.slice(0, 7) !== ym) return false
+      } else if (filterState.period === 'last_month') {
+        const d = new Date()
+        d.setMonth(d.getMonth() - 1)
+        if (inc.date.slice(0, 7) !== d.toISOString().slice(0, 7)) return false
+      } else if (filterState.period === 'last_7') {
+        const todayStr = new Date().toISOString().slice(0, 10)
+        const d = new Date()
+        d.setDate(d.getDate() - 7)
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
+      } else if (filterState.period === 'last_30') {
+        const todayStr = new Date().toISOString().slice(0, 10)
+        const d = new Date()
+        d.setDate(d.getDate() - 30)
+        const dStr = d.toISOString().slice(0, 10)
+        if (inc.date < dStr || inc.date > todayStr) return false
+      } else if (filterState.period === 'custom' && filterState.customDateStart && filterState.customDateEnd) {
+        if (inc.date < filterState.customDateStart || inc.date > filterState.customDateEnd) return false
+      }
+      
+      if (filterState.categoryId && filterState.categoryId !== 'all') {
+        const cat = categories.find(c => c.id === filterState.categoryId)
+        if (cat && inc.category !== cat.name) return false
+      }
+
+      if (filterState.accountId && filterState.accountId !== 'all') {
+        if (inc.account_id !== filterState.accountId) return false
+      }
+
+      if (filterState.paymentMethod && filterState.paymentMethod !== 'all') {
+        if (inc.income_method !== filterState.paymentMethod) return false
+      }
+
+      if (filterState.transactionType !== 'all' && inc.income_type !== filterState.transactionType) return false
+      
+      if (filterState.tags && filterState.tags.length > 0) {
+        const incTags = inc.tags || []
+        if (!filterState.tags.every(t => incTags.includes(t))) return false
+      }
+
+      if (filterState.minAmount) {
+        const cleanMin = parseFloat(filterState.minAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMin) && Number(inc.amount) < cleanMin) return false
+      }
+      if (filterState.maxAmount) {
+        const cleanMax = parseFloat(filterState.maxAmount.replace(/\./g, '').replace(',', '.'))
+        if (!isNaN(cleanMax) && Number(inc.amount) > cleanMax) return false
+      }
+
+      return true
+    })
+
+    let all = 0, received = 0, pending = 0, overdue = 0
+    baseItems.forEach(i => {
+      all++
+      const status = getTransactionStatus(i.payment_status, i.date)
+      if (status === 'paid') received++
+      else if (status === 'overdue') overdue++
+      else pending++
+    })
+
+    return { all, received, pending, overdue }
+  }, [allIncomes, searchQuery, filterState, selectedMonth, categories])
+
+  // Upcoming Receipts calculations (sorted overdue first, limited to 3)
+  const upcomingReceipts = useMemo(() => {
+    const filtered = allIncomes.filter(inc => {
+      if (inc.date.slice(0, 7) !== selectedMonth) return false
+      const status = getTransactionStatus(inc.payment_status, inc.date)
+      return status !== 'paid'
+    })
+
+    return filtered.sort((a, b) => {
+      const statusA = getTransactionStatus(a.payment_status, a.date)
+      const statusB = getTransactionStatus(b.payment_status, b.date)
+      
+      const isOverdueA = statusA === 'overdue'
+      const isOverdueB = statusB === 'overdue'
+      
+      if (isOverdueA && !isOverdueB) return -1
+      if (!isOverdueA && isOverdueB) return 1
+      
+      return a.date.localeCompare(b.date)
+    }).slice(0, 3)
+  }, [allIncomes, selectedMonth])
+
+  // Total sum of displayed upcoming items
+  const totalUpcomingAmount = useMemo(() => {
+    return upcomingReceipts.reduce((s, i) => s + Number(i.amount), 0)
+  }, [upcomingReceipts])
+
+  // Interval range label calculation for footer
+  const footerRangeLabel = useMemo(() => {
+    if (upcomingReceipts.length === 0) return 'Neste mês'
+    const hasOverdue = upcomingReceipts.some(inc => getTransactionStatus(inc.payment_status, inc.date) === 'overdue')
+    
+    const lastItem = upcomingReceipts[upcomingReceipts.length - 1]
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const [y, m, d] = lastItem.date.split('-').map(Number)
+    const targetDate = new Date(y, m - 1, d)
+    targetDate.setHours(0, 0, 0, 0)
+    
+    const diffTime = targetDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays <= 0) {
+      return hasOverdue ? 'Atrasados / Pendentes' : 'Neste mês'
+    }
+    return `Próximos ${diffDays} dias`
+  }, [upcomingReceipts])
+
+  // Subtext priority resolver: 1. notes, 2. category, 3. income_method, 4. income_type, 5. empty
+  function getUpcomingSubtext(item: Income) {
+    if (item.notes && item.notes.trim()) {
+      return item.notes.length > 25 ? item.notes.slice(0, 25) + '...' : item.notes
+    }
+    if (item.category && item.category.trim()) {
+      return item.category
+    }
+    if (item.income_method) {
+      const methods: Record<string, string> = {
+        pix: 'Pix',
+        transfer: 'TED',
+        cash: 'Dinheiro',
+        boleto: 'Boleto',
+        deposit: 'Depósito',
+        card: 'Cartão',
+        other: 'Outro'
+      }
+      return methods[item.income_method] || item.income_method.toUpperCase()
+    }
+    if (item.income_type) {
+      return item.income_type === 'fixed' ? 'Fixa' : 'Variável'
+    }
+    return ''
+  }
+
+  // Category Icon Mapper with secure Coins fallback
+  function getCategoryIcon(category: string, description: string | null) {
+    const name = ((description || '') + ' ' + (category || '')).toLowerCase()
+    if (name.includes('venda') || name.includes('comércio') || name.includes('loja') || name.includes('e-commerce') || name.includes('produto') || name.includes('mercado') || name.includes('shopping')) {
+      return ShoppingCart
+    }
+    if (name.includes('consultoria') || name.includes('serviço') || name.includes('aula') || name.includes('curso') || name.includes('mentor') || name.includes('suporte')) {
+      return User
+    }
+    if (name.includes('freela') || name.includes('desenvolvimento') || name.includes('site') || name.includes('plataforma') || name.includes('app') || name.includes('sistema') || name.includes('globe') || name.includes('web')) {
+      return Globe
+    }
+    if (name.includes('investimento') || name.includes('dividendo') || name.includes('rendimento') || name.includes('ações') || name.includes('fii') || name.includes('tesouro') || name.includes('poupanca')) {
+      return PiggyBank
+    }
+    return Coins
+  }
+
+  function getRelativeDateLabel(dateStr: string) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const targetDate = new Date(y, m - 1, d)
+    targetDate.setHours(0, 0, 0, 0)
+    
+    const diffTime = targetDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) {
+      const days = Math.abs(diffDays)
+      return { 
+        label: `Atrasado há ${days} dia${days > 1 ? 's' : ''}`, 
+        color: 'var(--neg)', 
+        bg: 'rgba(239, 68, 68, 0.08)',
+        valueColor: 'var(--neg)'
+      }
+    }
+    if (diffDays === 0) {
+      return { 
+        label: 'Hoje', 
+        color: 'var(--orange-ink)', 
+        bg: 'rgba(245, 124, 0, 0.08)',
+        valueColor: 'var(--orange-ink)'
+      }
+    }
+    if (diffDays === 1) {
+      return { 
+        label: 'Amanhã', 
+        color: 'var(--teal-900)', 
+        bg: 'rgba(1, 88, 76, 0.08)',
+        valueColor: 'var(--teal-900)'
+      }
+    }
+    return { 
+      label: `Em ${diffDays} dias`, 
+      color: 'var(--muted)', 
+      bg: 'rgba(0, 0, 0, 0.04)',
+      valueColor: 'var(--teal-900)'
+    }
+  }
+
   // Pagination calculations
   const ITEMS_PER_PAGE = 4
   const totalItems = filteredIncomes.length
@@ -574,57 +806,91 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
       <div className="receitas-primary-grid fade-up" style={{ marginBottom: 16 }}>
         <div className="receitas-main-col" style={{ height: '100%' }}>
       <section id="detalhamento-entradas" className="card fade-up" style={{ 
-        padding: 0, 
+        padding: '24px 20px', 
         overflow: 'hidden', 
         height: '100%', 
         display: 'flex', 
         flexDirection: 'column',
-        borderTop: '3px solid var(--teal)'
+        background: '#FCFAF8',
+        border: '1px solid var(--line-soft)',
+        borderRadius: '24px',
+        boxShadow: '0 4px 24px -4px rgba(13, 61, 55, 0.04)'
       }}>
-        <div style={{ padding: '20px 20px 0 20px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div>
-              <div className="card-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)' }}>Detalhamento das Entradas</div>
-              <div className="card-sub" style={{ marginTop: 4, fontSize: 12, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                <span>{filteredIncomes.length} resultado{filteredIncomes.length !== 1 ? 's' : ''}</span>
-                {filterState.period !== 'global' && <span style={{ color: 'var(--orange-ink)', fontWeight: 700 }}>· Filtro ativo</span>}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 12, 
+                background: 'var(--teal)', 
+                color: 'white', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(1, 88, 76, 0.15)'
+              }}>
+                <TrendingUp size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)', margin: 0 }}>Detalhamento das Entradas</h2>
+                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0 0' }}>Acompanhe todas as entradas registradas no período.</p>
               </div>
             </div>
-            {filteredIncomes.length > 0 && (
-              <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--teal-900)', background: 'rgba(1,88,76,0.08)', padding: '6px 14px', borderRadius: 20 }}>
-                R$ {brl(filteredIncomes.reduce((s, i) => s + Number(i.amount), 0))} filtrado
-              </div>
-            )}
           </div>
           
-          <div className="filter-bar" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
-            <div className="search-input" style={{
+          <div className="filter-bar" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingBottom: 16, borderBottom: '1px solid var(--line-soft)', marginBottom: 16 }}>
+            <div className="search-wrapper" style={{
+              position: 'relative',
               flex: '1 1 200px',
-              maxWidth: 300,
-              background: 'var(--surface-2)',
-              borderRadius: 8,
-              border: '1px solid var(--line-soft)',
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
+              maxWidth: 300
             }}>
-              <Search size={14} className="search-icon" style={{ color: 'var(--muted)', flexShrink: 0 }} />
+              <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input
+                id="search-incomes-input"
                 placeholder="Buscar receita..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
+                  width: '100%',
+                  background: 'var(--surface)',
+                  borderRadius: 99,
+                  border: '1px solid var(--line)',
+                  padding: '8px 36px 8px 34px',
                   fontSize: 13,
                   color: 'var(--ink)',
-                  width: '100%'
+                  outline: 'none',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.2s ease'
                 }}
               />
+              <span className="search-shortcut" style={{
+                position: 'absolute',
+                right: searchQuery ? 28 : 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'var(--faint)',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--line-soft)',
+                padding: '1px 5px',
+                borderRadius: 4,
+                pointerEvents: 'none'
+              }}>/</span>
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, color: 'var(--muted)' }}>
+                <button onClick={() => setSearchQuery('')} style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  padding: 2,
+                  color: 'var(--muted)'
+                }}>
                   <X size={13} />
                 </button>
               )}
@@ -632,31 +898,44 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }} className="hide-scrollbar">
               {[
-                { key: 'all', label: 'Todas', activeColor: 'var(--teal-900)' },
-                { key: 'received', label: 'Recebidas', activeColor: 'var(--teal-900)' },
-                { key: 'pending', label: 'Pendentes', activeColor: 'var(--teal-900)' },
-                { key: 'overdue', label: 'Atrasadas', activeColor: 'var(--teal-900)' },
+                { key: 'all', label: 'Todas', count: tabCounts.all },
+                { key: 'received', label: 'Recebidas', count: tabCounts.received },
+                { key: 'pending', label: 'Pendentes', count: tabCounts.pending },
+                { key: 'overdue', label: 'Atrasadas', count: tabCounts.overdue },
               ].map(chip => {
                 const isActive = statusTab === chip.key
                 return (
                   <button
                     key={chip.key}
-                    className={`btn-ghost ${isActive ? 'active-chip' : ''}`}
                     style={{
                       padding: '6px 14px',
                       fontSize: 12,
                       fontWeight: 600,
-                      borderRadius: 16,
-                      background: isActive ? chip.activeColor : 'var(--surface)',
+                      borderRadius: 99,
+                      background: isActive ? 'var(--teal-900)' : 'var(--surface)',
                       color: isActive ? 'white' : 'var(--muted)',
-                      border: isActive ? `1px solid ${chip.activeColor}` : '1px solid var(--line-soft)',
+                      border: isActive ? '1px solid var(--teal-900)' : '1px solid var(--line-soft)',
                       whiteSpace: 'nowrap',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s ease',
+                      boxShadow: isActive ? 'var(--shadow-sm)' : 'none'
                     }}
                     onClick={() => setStatusTab(chip.key as any)}
                   >
-                    {chip.label}
+                    <span>{chip.label}</span>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 99,
+                      background: isActive ? 'rgba(255, 255, 255, 0.15)' : 'var(--surface-2)',
+                      color: isActive ? 'white' : 'var(--ink)'
+                    }}>
+                      {chip.count}
+                    </span>
                   </button>
                 )
               })}
@@ -665,17 +944,18 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             <button 
               className="btn-secondary" 
               style={{
-                padding: '8px 14px',
+                padding: '8px 16px',
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 99,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
                 background: activeFilterCount > 0 ? 'rgba(1, 88, 76, 0.08)' : 'var(--surface)',
                 color: activeFilterCount > 0 ? 'var(--teal-900)' : 'var(--ink)',
-                border: '1px solid var(--line-soft)',
+                border: '1px solid var(--line)',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
                 marginLeft: 'auto'
               }}
               onClick={() => setIsDrawerOpen(true)}
@@ -696,10 +976,10 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           </div>
           
           {activeFilterCount > 0 && (
-            <div style={{ display: 'flex', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, padding: '0 0 16px 0', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap', marginBottom: 16 }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>Filtros ativos:</span>
               {filterState.period !== 'global' && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Período: {
                     filterState.period === 'this_month' ? 'Este mês' :
                     filterState.period === 'last_month' ? 'Mês passado' :
@@ -711,17 +991,17 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
               )}
               {filterState.categoryId !== 'all' && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Categoria: {categories.find(c => c.id === filterState.categoryId)?.name || filterState.categoryId}
                 </div>
               )}
               {filterState.accountId && filterState.accountId !== 'all' && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Conta: {accounts.find(a => a.id === filterState.accountId)?.name || filterState.accountId}
                 </div>
               )}
               {filterState.paymentMethod && filterState.paymentMethod !== 'all' && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Método: {
                     filterState.paymentMethod === 'pix' ? 'Pix' :
                     filterState.paymentMethod === 'boleto' ? 'Boleto' :
@@ -735,212 +1015,587 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                 </div>
               )}
               {filterState.transactionType !== 'all' && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Tipo: {filterState.transactionType === 'fixed' ? 'Fixa' : 'Variável'}
                 </div>
               )}
               {filterState.tags && filterState.tags.length > 0 && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Tags: {filterState.tags.join(', ')}
                 </div>
               )}
               {(filterState.minAmount || filterState.maxAmount) && (
-                <div className="filter-pill">
+                <div className="filter-pill" style={{ fontSize: 11, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', padding: '2px 8px', borderRadius: 12, color: 'var(--muted)' }}>
                   Valor: {filterState.minAmount ? `>= R$ ${filterState.minAmount}` : ''} {filterState.maxAmount ? `<= R$ ${filterState.maxAmount}` : ''}
                 </div>
               )}
               <button style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--orange)', cursor: 'pointer', fontWeight: 600, padding: '2px 6px' }} onClick={() => setFilterState(defaultFilterState)}>Limpar</button>
             </div>
           )}
+
+          {/* Intelligent Summary below Toolbar */}
+          <div className="intelligent-summary" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 18px',
+            background: 'var(--surface)',
+            border: '1px solid var(--line-soft)',
+            borderRadius: 16,
+            boxShadow: 'var(--shadow-sm)',
+            marginBottom: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(1, 88, 76, 0.05)', color: 'var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CalendarClock size={16} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                  {filteredIncomes.length} resultado{filteredIncomes.length !== 1 ? 's' : ''} encontrado{filteredIncomes.length !== 1 ? 's' : ''}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  Mostrando {filteredIncomes.length > 0 ? `${Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}–${Math.min(totalItems, activePage * ITEMS_PER_PAGE)}` : '0'} de {totalItems} receitas
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }} className="summary-stats-right">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Filtrado</span>
+                  <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 15, fontWeight: 800, color: 'var(--teal-900)' }}>
+                    R$ {brl(filteredIncomes.reduce((s, i) => s + Number(i.amount), 0))}
+                  </span>
+                </div>
+                
+                {filteredIncomes.length > 0 && (
+                  <>
+                    <div style={{ width: 1, height: 28, background: 'var(--line)' }} className="summary-divider" />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }} className="summary-media-col">
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Média por Entrada</span>
+                      <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 15, fontWeight: 800, color: 'var(--teal-900)' }}>
+                        R$ {brl(filteredIncomes.reduce((s, i) => s + Number(i.amount), 0) / filteredIncomes.length)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
         
-        <div style={{ padding: '0 20px', flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }} className="hide-scrollbar">
           {loading ? (
-            <p className="empty-msg" style={{ padding: '30px 0', fontSize: 13 }}>Carregando...</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 8 }}>
+              <div className="spinner-small" style={{ width: 18, height: 18, borderTopColor: 'var(--teal)' }} />
+              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>Carregando...</p>
+            </div>
           ) : filteredIncomes.length === 0 ? (
             searchQuery.trim() || activeFilterCount > 0 ? (
-              <div className="premium-empty-state">
-                <div className="icon-container">
+              <div className="premium-empty-state" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '48px 24px',
+                background: 'var(--surface)',
+                border: '1px dashed var(--line)',
+                borderRadius: '16px',
+                margin: '20px 0'
+              }}>
+                <div className="icon-container" style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: 'rgba(1, 88, 76, 0.03)',
+                  border: '1px dashed rgba(13, 61, 55, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                  color: 'var(--muted)'
+                }}>
                   <Search size={24} />
                 </div>
-                <h3>Nenhuma entrada encontrada</h3>
-                <p>Ajuste a busca ou limpe os filtros para visualizar seus lançamentos.</p>
-                <div className="actions-row">
-                  <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, border: '1px solid var(--line-soft)', cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setFilterState(defaultFilterState); }}>Limpar filtros</button>
-                  <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, background: 'var(--teal)', color: 'white', border: 'none', cursor: 'pointer' }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--teal-900)', margin: '0 0 6px 0' }}>Nenhuma entrada encontrada</h3>
+                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 20px 0', maxWidth: 280, lineHeight: 1.5 }}>
+                  Ajuste a busca ou limpe os filtros para visualizar seus lançamentos.
+                </p>
+                <div className="actions-row" style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-secondary" style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 99,
+                    border: '1px solid var(--line)',
+                    background: 'var(--surface)',
+                    color: 'var(--ink)',
+                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow-sm)'
+                  }} onClick={() => { setSearchQuery(''); setFilterState(defaultFilterState); }}>Limpar filtros</button>
+                  <button className="btn-primary" style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 99,
+                    background: 'var(--teal)',
+                    color: 'white',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(1, 88, 76, 0.15)'
+                  }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
                 </div>
               </div>
             ) : (
-              <div className="premium-empty-state">
-                <div className="icon-container">
+              <div className="premium-empty-state" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '48px 24px',
+                background: 'var(--surface)',
+                border: '1px dashed var(--line)',
+                borderRadius: '16px',
+                margin: '20px 0'
+              }}>
+                <div className="icon-container" style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: 'rgba(1, 88, 76, 0.03)',
+                  border: '1px dashed rgba(13, 61, 55, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                  color: 'var(--muted)'
+                }}>
                   <CalendarClock size={24} />
                 </div>
-                <h3>Nenhuma entrada cadastrada</h3>
-                <p>Cadastre uma receita para acompanhar seus recebimentos neste mês.</p>
-                <div className="actions-row">
-                  <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, background: 'var(--teal)', color: 'white', border: 'none', cursor: 'pointer' }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--teal-900)', margin: '0 0 6px 0' }}>Nenhuma entrada cadastrada</h3>
+                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 20px 0', maxWidth: 280, lineHeight: 1.5 }}>
+                  Cadastre uma receita para acompanhar seus recebimentos neste mês.
+                </p>
+                <div className="actions-row" style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-primary" style={{
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 99,
+                    background: 'var(--teal)',
+                    color: 'white',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(1, 88, 76, 0.15)'
+                  }} onClick={() => setShowIncomeModal(true)}>Nova receita</button>
                 </div>
               </div>
             )
           ) : (
             <div className="premium-list-container">
               {/* Header (desktop/tablet only) */}
-              <div className="premium-table-header desktop-tablet-only">
-                <div className="col-sit" style={{ textAlign: 'center' }}>Situação</div>
+              <div className="premium-table-header desktop-tablet-only" style={{
+                display: 'grid',
+                gridTemplateColumns: '120px 2fr 1.2fr 1.2fr 100px 120px',
+                gap: 12,
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: '1px solid var(--line-soft)',
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                background: 'rgba(0,0,0,0.01)',
+                marginBottom: 8,
+                borderRadius: 8
+              }}>
+                <div className="col-sit">Situação</div>
                 <div className="col-desc">Descrição</div>
-                <div className="col-cat" style={{ textAlign: 'center' }}>Categoria</div>
-                <div className="col-acc" style={{ textAlign: 'center' }}>Conta</div>
-                <div className="col-val" style={{ textAlign: 'center' }}>Valor</div>
+                <div className="col-cat" style={{ paddingLeft: 6 }}>Categoria</div>
+                <div className="col-acc">Conta</div>
+                <div className="col-val" style={{ textAlign: 'right', paddingRight: 8 }}>Valor</div>
                 <div className="col-actions"></div>
               </div>
 
               <div className="premium-rows-container">
                 {groupedIncomes.map(group => {
+                  const isCollapsed = collapsedGroups[group.date] ?? false
+                  const groupTotal = group.items.reduce((s, i) => s + Number(i.amount), 0)
                   return (
-                    <div key={group.date} className="date-group">
-                      <div className="group-header">
-                        <span className="group-date">{formatGroupDate(group.date)}</span>
-                        <span className="group-summary">{getGroupSummary(group.items)}</span>
+                    <div key={group.date} className="date-group-card">
+                      <div className="group-header" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '14px 16px',
+                        background: 'var(--surface-2)',
+                        borderBottom: isCollapsed ? 'none' : '1px solid var(--line-soft)',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background 0.2s ease'
+                      }} onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.date]: !isCollapsed }))}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            background: 'var(--surface)',
+                            border: '1px solid var(--line-soft)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--teal)',
+                            boxShadow: 'var(--shadow-sm)'
+                          }}>
+                            <Calendar size={15} />
+                          </div>
+                          <div>
+                            <span className="group-date" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                              {formatGroupDate(group.date)}
+                            </span>
+                            <div className="group-summary-subtitle" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                              {group.items.length} receita{group.items.length !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total do dia</span>
+                            <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                              R$ {brl(groupTotal)}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--line-soft)', color: 'var(--muted)' }}>
+                            {isCollapsed ? <ChevronRight size={14} /> : <ArrowDown size={14} />}
+                          </div>
+                        </div>
                       </div>
-                      <div className="group-items">
-                        {group.items.map(item => {
-                          const cat = categories.find(c => c.name === item.category)
-                          const catColor = cat?.color ?? '#90A4AE'
-                          const status = getTransactionStatus(item.payment_status, item.date)
-                          const account = accounts.find(a => a.id === item.account_id)
-                          
-                          // details for subtext
-                          const descriptionSubtext = status === 'paid' 
-                            ? `Recebido em ${item.received_at ? formatShortDate(item.received_at) : formatShortDate(item.date)}` 
-                            : status === 'overdue' 
-                              ? `Venceu em ${formatShortDate(item.date)}` 
-                              : `Previsto para ${formatShortDate(item.date)}`
-                          
-                          let valSub = ''
-                          if (item.installment_number) valSub = `Parcela ${item.installment_number}/${item.installments_total}`
-                          else if (item.is_recurring) valSub = 'Recorrente'
-                          
-                          return (
-                            <div key={item.id}>
-                              {/* Desktop/Tablet Row */}
-                              <div className="premium-table-row desktop-tablet-only">
-                                <div className="cell-sit" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-                                  <span className={`status-badge ${status}`}>
-                                    {status === 'paid' && '✓ Recebido'}
-                                    {status === 'pending' && '○ Pendente'}
-                                    {status === 'overdue' && '! Atrasado'}
-                                  </span>
-                                  <span 
-                                    style={{ 
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      fontSize: '9px', 
+                      
+                      {!isCollapsed && (
+                        <div className="group-items">
+                          {group.items.map(item => {
+                            const cat = categories.find(c => c.name === item.category)
+                            const catColor = cat?.color ?? '#90A4AE'
+                            const status = getTransactionStatus(item.payment_status, item.date)
+                            const account = accounts.find(a => a.id === item.account_id)
+                            
+                            // details for subtext
+                            const descriptionSubtext = status === 'paid' 
+                              ? `Recebido em ${item.received_at ? formatShortDate(item.received_at) : formatShortDate(item.date)}` 
+                              : status === 'overdue' 
+                                ? `Venceu em ${formatShortDate(item.date)}` 
+                                : `Previsto para ${formatShortDate(item.date)}`
+                            
+                            let valSub = ''
+                            if (item.installment_number) valSub = `Parcela ${item.installment_number}/${item.installments_total}`
+                            else if (item.is_recurring) valSub = 'Recorrente'
+                            
+                            return (
+                              <div key={item.id} style={{ borderBottom: '1px solid var(--line-soft)' }}>
+                                {/* Desktop/Tablet Row */}
+                                <div 
+                                  className="premium-table-row desktop-tablet-only"
+                                  style={{
+                                    borderLeft: status === 'pending'
+                                      ? '3.5px solid var(--gold)'
+                                      : status === 'overdue'
+                                        ? '3.5px solid var(--neg)'
+                                        : '3.5px solid transparent',
+                                    background: status === 'pending'
+                                      ? 'rgba(255, 179, 0, 0.015)'
+                                      : status === 'overdue'
+                                        ? 'rgba(239, 68, 68, 0.015)'
+                                        : 'var(--surface)'
+                                  }}
+                                >
+                                  <div className="cell-sit" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                    <span className={`status-badge-premium ${status}`}>
+                                      {status === 'paid' && '✓ Recebido'}
+                                      {status === 'pending' && '○ Pendente'}
+                                      {status === 'overdue' && '! Atrasado'}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                      <span 
+                                        style={{ 
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          fontSize: '9px', 
+                                          fontWeight: 800,
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.05em',
+                                          padding: '2px 6px',
+                                          borderRadius: '6px',
+                                          background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
+                                          color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
+                                          border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
+                                        }}
+                                      >
+                                        {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="cell-desc" style={{ paddingLeft: 4 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
+                                      {item.description || item.category}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                        {descriptionSubtext}
+                                      </span>
+                                      <span className="tablet-only-inline" style={{ fontSize: 11, color: 'var(--muted)', display: 'none' }}>
+                                        · <span style={{ fontWeight: 600, color: catColor }}>{item.category}</span>
+                                        {account && ` · ${account.name}`}
+                                        {!account && ` · Sem conta`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="cell-cat" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                    <span className="category-badge-premium" style={{ backgroundColor: catColor + '10', color: catColor }}>
+                                      <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                      {item.category}
+                                    </span>
+                                    {item.income_method && (
+                                      <span 
+                                        style={{ 
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          fontSize: '9px', 
+                                          fontWeight: 700,
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.05em',
+                                          padding: '1px 5px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(94, 111, 105, 0.05)',
+                                          color: 'var(--muted)',
+                                          border: '1px solid rgba(94, 111, 105, 0.12)'
+                                        }}
+                                      >
+                                        {item.income_method === 'pix' ? 'Pix' :
+                                         item.income_method === 'transfer' ? 'TED' :
+                                         item.income_method === 'cash' ? 'Dinheiro' :
+                                         item.income_method === 'boleto' ? 'Boleto' :
+                                         item.income_method === 'deposit' ? 'Depósito' :
+                                         item.income_method === 'card' ? 'Cartão' :
+                                         item.income_method === 'other' ? 'Outro' :
+                                         item.income_method}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="cell-acc" style={{ display: 'flex', alignItems: 'center' }}>
+                                    {item.account_id ? (
+                                      account ? (
+                                        <span className="account-badge-premium active">
+                                          <Wallet size={12} style={{ color: 'var(--teal)', marginRight: 4 }} />
+                                          {account.name}
+                                        </span>
+                                      ) : (
+                                        <span className="account-badge-premium warning">
+                                          <AlertTriangle size={12} style={{ marginRight: 4 }} />
+                                          Conta não encontrada
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="account-badge-premium warning">
+                                        <Shield size={12} style={{ marginRight: 4 }} />
+                                        Sem conta
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="cell-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
+                                    <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 700, color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)' }}>
+                                      + R$ {brl(Number(item.amount))}
+                                    </div>
+                                    {valSub && (
+                                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{valSub}</div>
+                                    )}
+                                  </div>
+                                  <div className="cell-actions" style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', position: 'relative' }} onClick={e => e.stopPropagation()}>
+                                      {status !== 'paid' && (
+                                        <button 
+                                          className="action-btn check-btn"
+                                          onClick={() => handleToggleStatus(item)}
+                                          disabled={savingItemId !== null}
+                                          title="Marcar como recebida"
+                                        >
+                                          {savingItemId === item.id ? <div className="spinner-small" /> : <CheckCircle2 size={12} />}
+                                        </button>
+                                      )}
+                                      
+                                      <button 
+                                        className="action-btn"
+                                        onClick={() => setEditIncome(item)}
+                                        title="Editar"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                      
+                                      <button 
+                                        className="action-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setActiveMenuId(activeMenuId === item.id ? null : item.id)
+                                        }}
+                                        title="Mais opções"
+                                      >
+                                        <MoreHorizontal size={12} />
+                                      </button>
+                                      
+                                      {activeMenuId === item.id && (
+                                        <div className="premium-dropdown" style={{ right: 0 }}>
+                                          <button className="dropdown-item" onClick={() => {
+                                            const cloned = {
+                                              ...item,
+                                              id: undefined as unknown as string,
+                                              created_at: undefined as unknown as string,
+                                              updated_at: undefined as unknown as string,
+                                              received_at: null,
+                                              payment_status: false,
+                                              installment_group_id: undefined
+                                            }
+                                            setEditIncome(cloned)
+                                            setActiveMenuId(null)
+                                          }}>
+                                            <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
+                                          </button>
+                                          {status === 'paid' && (
+                                            <button className="dropdown-item warning" onClick={() => {
+                                              handleToggleStatusToUnpaid(item)
+                                              setActiveMenuId(null)
+                                            }}>
+                                              <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
+                                            </button>
+                                          )}
+                                          <button className="dropdown-item danger" onClick={() => {
+                                            if (confirm("Tem certeza que deseja excluir esta receita?")) {
+                                              handleDelete(item.id)
+                                            }
+                                            setActiveMenuId(null)
+                                          }}>
+                                            <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Mobile Card */}
+                                <div 
+                                  className="premium-mobile-card mobile-only"
+                                  style={{
+                                    borderLeft: status === 'pending'
+                                      ? '4px solid var(--gold)'
+                                      : status === 'overdue'
+                                        ? '4px solid var(--neg)'
+                                        : '1px solid var(--line-soft)',
+                                    background: status === 'pending'
+                                      ? 'rgba(255, 179, 0, 0.015)'
+                                      : status === 'overdue'
+                                        ? 'rgba(239, 68, 68, 0.015)'
+                                        : 'var(--surface)'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                                      {item.description || item.category}
+                                    </span>
+                                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{
+                                      fontSize: 13,
                                       fontWeight: 800,
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.05em',
-                                      padding: '2px 6px',
-                                      borderRadius: '6px',
-                                      background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
-                                      color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
-                                      border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
-                                    }}
-                                  >
-                                    {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
-                                  </span>
-                                </div>
-                                <div className="cell-desc">
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
-                                    {item.description || item.category}
+                                      color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)'
+                                    }}>
+                                      + R$ {brl(Number(item.amount))}
+                                    </span>
                                   </div>
-                                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                    {descriptionSubtext}
-                                  </div>
-                                </div>
-                                 <div className="cell-cat" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-                                   <span className="category-badge" style={{ backgroundColor: catColor + '10', color: catColor }}>
-                                     <span className="category-dot" style={{ backgroundColor: catColor }} />
-                                     {item.category}
-                                   </span>
-                                   {item.income_method && (
+                                  
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span className={`status-badge-premium ${status}`}>
+                                      {status === 'paid' && '✓ Recebido'}
+                                      {status === 'pending' && '○ Pendente'}
+                                      {status === 'overdue' && '! Atrasado'}
+                                    </span>
                                     <span 
                                       style={{ 
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         fontSize: '9px', 
-                                        fontWeight: 700,
+                                        fontWeight: 800,
                                         textTransform: 'uppercase',
                                         letterSpacing: '0.05em',
                                         padding: '2px 6px',
                                         borderRadius: '6px',
-                                        background: 'rgba(94, 111, 105, 0.05)',
-                                        color: 'var(--muted)',
-                                        border: '1px solid rgba(94, 111, 105, 0.12)'
+                                        background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
+                                        color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
+                                        border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
                                       }}
                                     >
-                                      {item.income_method === 'pix' ? 'Pix' :
-                                       item.income_method === 'transfer' ? 'Transferência' :
-                                       item.income_method === 'cash' ? 'Dinheiro' :
-                                       item.income_method === 'boleto' ? 'Boleto' :
-                                       item.income_method === 'deposit' ? 'Depósito' :
-                                       item.income_method === 'card' ? 'Cartão' :
-                                       item.income_method === 'other' ? 'Outro' :
-                                       item.income_method}
+                                      {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
                                     </span>
-                                  )}
-                                </div>
-                                <div className="cell-acc" style={{ display: 'flex', justifyContent: 'center' }}>
-                                  {item.account_id ? (
-                                    account ? (
-                                      <span className="account-badge active">{account.name}</span>
-                                    ) : (
-                                      <span className="account-badge warning">Conta não encontrada</span>
-                                    )
-                                  ) : (
-                                    <span className={`account-badge ${status !== 'paid' ? 'warning' : 'muted'}`}>Sem conta</span>
-                                  )}
-                                </div>
-                                <div className="cell-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                                  <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 700, color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)' }}>
-                                    + R$ {brl(Number(item.amount))}
                                   </div>
-                                  {valSub && (
-                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{valSub}</div>
-                                  )}
-                                </div>
-                                <div className="cell-actions" style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', position: 'relative' }} onClick={e => e.stopPropagation()}>
-                                    {status !== 'paid' && (
+                                  
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '11px', color: 'var(--muted)', background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 12 }}>
+                                    <div>{descriptionSubtext}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: catColor }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: catColor }} />
+                                        {item.category}
+                                      </span>
+                                      {item.income_method && (
+                                        <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', background: 'rgba(0,0,0,0.04)', padding: '1px 4px', borderRadius: '4px' }}>
+                                          {item.income_method}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      {item.account_id ? (
+                                        account ? (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--teal-900)', fontWeight: 600 }}>
+                                            <Wallet size={11} style={{ color: 'var(--teal)' }} />
+                                            {account.name}
+                                          </span>
+                                        ) : (
+                                          <span style={{ color: '#A06E00', fontWeight: 600 }}>Conta não encontrada</span>
+                                        )
+                                      ) : (
+                                        <span style={{ color: '#A06E00', fontWeight: 600 }}>Sem conta</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="mobile-actions-row" onClick={e => e.stopPropagation()}>
+                                    {status !== 'paid' ? (
                                       <button 
-                                        className="action-btn check-btn"
+                                        className="mobile-action-btn primary"
                                         onClick={() => handleToggleStatus(item)}
                                         disabled={savingItemId !== null}
-                                        title="Marcar como recebida"
+                                        style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                                       >
-                                        {savingItemId === item.id ? <div className="spinner-small" /> : <CheckCircle2 size={12} />}
+                                        {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={12} />} 
+                                        Marcar recebida
                                       </button>
-                                    )}
-                                    
+                                    ) : null}
                                     <button 
-                                      className="action-btn"
+                                      className="mobile-action-btn secondary"
                                       onClick={() => setEditIncome(item)}
-                                      title="Editar"
                                     >
-                                      <Pencil size={12} />
+                                      Editar
                                     </button>
-                                    
                                     <button 
-                                      className="action-btn"
+                                      className="mobile-action-btn icon"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         setActiveMenuId(activeMenuId === item.id ? null : item.id)
                                       }}
-                                      title="Mais opções"
                                     >
-                                      <MoreHorizontal size={12} />
+                                      <MoreHorizontal size={14} />
                                     </button>
                                     
                                     {activeMenuId === item.id && (
-                                      <div className="premium-dropdown">
+                                      <div className="premium-dropdown" style={{ bottom: '100%', top: 'auto', right: 0 }}>
                                         <button className="dropdown-item" onClick={() => {
                                           const cloned = {
                                             ...item,
@@ -977,129 +1632,10 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Mobile Card */}
-                              <div className="premium-mobile-card mobile-only">
-                                <div className="mobile-top-row">
-                                  <span className="mobile-desc-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '65%' }}>
-                                    {item.description || item.category}
-                                  </span>
-                                  <span className={`mobile-amount ${status} tabnums${hidden ? ' priv' : ''}`}>
-                                    + R$ {brl(Number(item.amount))}
-                                  </span>
-                                </div>
-                                
-                                <div className="mobile-badge-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span className={`status-badge ${status}`}>
-                                    {status === 'paid' && '✓ Recebido'}
-                                    {status === 'pending' && '○ Pendente'}
-                                    {status === 'overdue' && '! Atrasado'}
-                                  </span>
-                                  {valSub && (
-                                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{valSub}</span>
-                                  )}
-                                </div>
-                                
-                                <div className="mobile-meta-row">
-                                  <div>{formatMainDate(item.date)} · <span className="cat-text">{item.category}</span> · <span 
-                                     style={{ 
-                                       display: 'inline-flex',
-                                       alignItems: 'center',
-                                       fontSize: '8.5px', 
-                                       fontWeight: 800,
-                                       textTransform: 'uppercase',
-                                       letterSpacing: '0.04em',
-                                       padding: '1px 5px',
-                                       borderRadius: '4px',
-                                       background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
-                                       color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
-                                       border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.1)' : '1px solid rgba(245, 124, 0, 0.1)'
-                                     }}
-                                   >
-                                     {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
-                                   </span></div>
-                                  <div className="acc-text">
-                                    {item.account_id ? (
-                                      account ? (
-                                        <span className="account-badge active">{account.name}</span>
-                                      ) : (
-                                        <span className="account-badge warning">Conta não encontrada</span>
-                                      )
-                                    ) : (
-                                      <span className={`account-badge ${status !== 'paid' ? 'warning' : 'muted'}`}>Sem conta</span>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                <div className="mobile-actions-row" onClick={e => e.stopPropagation()}>
-                                  {status !== 'paid' ? (
-                                    <button 
-                                      className="mobile-action-btn primary"
-                                      onClick={() => handleToggleStatus(item)}
-                                      disabled={savingItemId !== null}
-                                      style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                                    >
-                                      {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={12} />} 
-                                      Marcar recebida
-                                    </button>
-                                  ) : null}
-                                  <button 
-                                    className="mobile-action-btn secondary"
-                                    onClick={() => setEditIncome(item)}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button 
-                                    className="mobile-action-btn icon"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setActiveMenuId(activeMenuId === item.id ? null : item.id)
-                                    }}
-                                  >
-                                    <MoreHorizontal size={14} />
-                                  </button>
-                                  
-                                  {activeMenuId === item.id && (
-                                    <div className="premium-dropdown" style={{ bottom: '100%', top: 'auto', right: 0 }}>
-                                      <button className="dropdown-item" onClick={() => {
-                                        const cloned = {
-                                          ...item,
-                                          id: undefined as unknown as string,
-                                          created_at: undefined as unknown as string,
-                                          updated_at: undefined as unknown as string,
-                                          received_at: null,
-                                          payment_status: false,
-                                          installment_group_id: undefined
-                                        }
-                                        setEditIncome(cloned)
-                                        setActiveMenuId(null)
-                                      }}>
-                                        <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
-                                      </button>
-                                      {status === 'paid' && (
-                                        <button className="dropdown-item warning" onClick={() => {
-                                          handleToggleStatusToUnpaid(item)
-                                          setActiveMenuId(null)
-                                        }}>
-                                          <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
-                                        </button>
-                                      )}
-                                      <button className="dropdown-item danger" onClick={() => {
-                                        if (confirm("Tem certeza que deseja excluir esta receita?")) {
-                                          handleDelete(item.id)
-                                        }
-                                        setActiveMenuId(null)
-                                      }}>
-                                        <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1110,9 +1646,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
 
         {/* Pagination Footer */}
         {totalPages > 1 && (
-          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'rgba(0,0,0,0.01)' }}>
+          <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'rgba(0,0,0,0.01)', borderRadius: '0 0 24px 24px' }}>
             <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
-              Mostrando {Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}-{Math.min(totalItems, activePage * ITEMS_PER_PAGE)} de {totalItems} receitas
+              Mostrando {Math.min(totalItems, (activePage - 1) * ITEMS_PER_PAGE + 1)}–{Math.min(totalItems, activePage * ITEMS_PER_PAGE)} de {totalItems} receitas
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button 
@@ -1169,7 +1705,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             justify-content: center;
             width: 32px;
             height: 32px;
-            border-radius: 8px;
+            border-radius: 99px;
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
@@ -1178,15 +1714,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             color: var(--ink);
             border: 1px solid var(--line-soft);
             font-family: inherit;
-            box-sizing: border-box !important;
             margin: 0 !important;
             padding: 0 !important;
-            vertical-align: middle !important;
-            align-self: center !important;
-            transform: translateY(0);
+            box-shadow: var(--shadow-sm);
           }
           .pagination-btn:hover:not(:disabled) {
-            background: rgba(13, 61, 55, 0.05);
+            background: var(--surface-2);
             color: var(--teal-900);
             border-color: rgba(13, 61, 55, 0.2);
             transform: translateY(-1px);
@@ -1210,6 +1743,8 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             background: var(--surface-2);
             border-color: var(--line-soft);
             color: var(--muted);
+            box-shadow: none;
+            transform: none !important;
           }
           .pagination-ellipsis {
             display: flex;
@@ -1223,123 +1758,91 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           }
           .premium-table-header {
             display: grid;
-            grid-template-columns: 100px 2.2fr 1.2fr 1.2fr 100px 120px;
+            grid-template-columns: 120px 2fr 1.2fr 1.2fr 100px 120px;
             gap: 12px;
             align-items: center;
-            padding: 12px;
+            padding: 12px 16px;
             border-bottom: 1px solid var(--line-soft);
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
             background: rgba(0,0,0,0.01);
           }
-          .premium-table-header > div:not(:last-child) {
-            position: relative;
-            padding-right: 12px;
-          }
-          .premium-table-header > div:not(:last-child)::after {
-            content: "";
-            position: absolute;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 1px;
-            height: 12px;
-            background-color: var(--line);
-            opacity: 0.8;
-          }
-          .col-date.sortable {
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-          }
-          .col-date.sortable:hover {
-            color: var(--ink);
-          }
           .group-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 12px 6px 12px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--muted);
-            border-bottom: 1px solid rgba(0,0,0,0.02);
-            margin-top: 8px;
+            padding: 14px 16px;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--line-soft);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s ease;
+          }
+          .group-header:hover {
+            background: rgba(1, 88, 76, 0.02);
           }
           .group-date {
             text-transform: capitalize;
             font-weight: 700;
             color: var(--ink);
           }
-          .group-summary {
-            background: var(--surface-2);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--muted);
+          .date-group-card {
+            background: var(--surface);
+            border: 1px solid var(--line-soft);
+            border-radius: 16px;
+            box-shadow: 0 2px 8px -2px rgba(13, 61, 55, 0.03);
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+          }
+          .date-group-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px -2px rgba(13, 61, 55, 0.06);
           }
           .premium-table-row {
             display: grid;
-            grid-template-columns: 100px 2.2fr 1.2fr 1.2fr 100px 120px;
+            grid-template-columns: 120px 2fr 1.2fr 1.2fr 100px 120px;
             gap: 12px;
             align-items: center;
-            padding: 14px 12px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--line-soft);
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--surface);
             position: relative;
           }
-          .premium-table-row::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 4px;
-            bottom: 4px;
-            width: 3px;
-            background: linear-gradient(to bottom, var(--teal), var(--teal-900));
-            border-radius: 0 4px 4px 0;
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.2s ease;
-          }
           .premium-table-row:hover {
-            background-color: rgba(1, 88, 76, 0.03);
-            padding-left: 18px;
+            background-color: rgba(1, 88, 76, 0.02) !important;
           }
-          .premium-table-row:hover::before {
-            transform: scaleX(1);
-          }
-          .status-badge {
+          .status-badge-premium {
             display: inline-flex;
             align-items: center;
             gap: 4px;
             font-size: 10px;
             font-weight: 700;
             padding: 4px 8px;
-            border-radius: 12px;
+            border-radius: 8px;
             white-space: nowrap;
             border: 1px solid transparent;
           }
-          .status-badge.paid {
+          .status-badge-premium.paid {
             color: var(--green);
             background: rgba(40,167,69,0.06);
             border-color: rgba(40,167,69,0.15);
           }
-          .status-badge.pending {
+          .status-badge-premium.pending {
             color: #A06E00;
             background: rgba(255,179,0,0.06);
             border-color: rgba(255,179,0,0.15);
           }
-          .status-badge.overdue {
+          .status-badge-premium.overdue {
             color: var(--neg);
             background: rgba(239,68,68,0.06);
             border-color: rgba(239,68,68,0.15);
           }
-          .category-badge {
+          .category-badge-premium {
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -1358,7 +1861,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             border-radius: 3px;
             flex-shrink: 0;
           }
-          .account-badge {
+          .account-badge-premium {
             display: inline-flex;
             font-size: 11px;
             font-weight: 600;
@@ -1366,15 +1869,15 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             border-radius: 8px;
             white-space: nowrap;
           }
-          .account-badge.active {
+          .account-badge-premium.active {
             color: var(--ink);
             background: var(--surface-2);
           }
-          .account-badge.warning {
+          .account-badge-premium.warning {
             color: #A06E00;
             background: rgba(255,179,0,0.08);
           }
-          .account-badge.muted {
+          .account-badge-premium.muted {
             color: var(--muted);
             background: rgba(0,0,0,0.03);
           }
@@ -1395,6 +1898,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             background: var(--surface-2);
             color: var(--ink);
             border-color: var(--line-strong);
+            transform: translateY(-1px);
           }
           .action-btn.check-btn {
             color: var(--green);
@@ -1499,6 +2003,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           .mobile-only {
             display: none !important;
           }
+          
+          .search-wrapper input:focus {
+            border-color: rgba(1, 88, 76, 0.4) !important;
+            box-shadow: 0 0 0 3px rgba(1, 88, 76, 0.08) !important;
+          }
+
           @media (max-width: 767px) {
             .desktop-tablet-only {
               display: none !important;
@@ -1508,48 +2018,20 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             }
             .premium-mobile-card {
               border: 1px solid var(--line-soft);
-              border-radius: 12px;
+              border-radius: 16px;
               background: var(--surface);
               padding: 16px;
               display: flex;
               flex-direction: column;
               gap: 12px;
               margin-bottom: 12px;
-              box-shadow: 0 1px 3px rgba(0,0,0,0.01);
+              box-shadow: 0 2px 8px -2px rgba(13, 61, 55, 0.03);
               position: relative;
+              transition: transform 0.2s ease, box-shadow 0.2s ease;
             }
-            .mobile-top-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-            .mobile-desc-title {
-              font-size: 13px;
-              font-weight: 600;
-              color: var(--ink);
-            }
-            .mobile-amount {
-              font-size: 13px;
-              font-weight: 700;
-            }
-            .mobile-amount.paid {
-              color: var(--green);
-            }
-            .mobile-amount.pending {
-              color: var(--teal-900);
-            }
-            .mobile-amount.overdue {
-              color: var(--neg);
-            }
-            .mobile-meta-row {
-              font-size: 11px;
-              color: var(--muted);
-              display: flex;
-              flex-direction: column;
-              gap: 4px;
-            }
-            .cat-text {
-              font-weight: 600;
+            .premium-mobile-card:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px -2px rgba(13, 61, 55, 0.06);
             }
             .mobile-actions-row {
               display: flex;
@@ -1559,7 +2041,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             .mobile-action-btn {
               font-size: 12px;
               font-weight: 600;
-              padding: 6px 12px;
+              padding: 8px 12px;
               border-radius: 8px;
               cursor: pointer;
               transition: all 0.2s ease;
@@ -1585,22 +2067,39 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               display: flex;
               align-items: center;
               justify-content: center;
-              width: 32px;
-              padding: 6px 0;
+              width: 36px;
+              height: 36px;
+              padding: 0;
+            }
+            .intelligent-summary {
+              flex-direction: column;
+              align-items: flex-start !important;
+              gap: 12px;
+            }
+            .summary-stats-right {
+              width: 100%;
+              justify-content: space-between;
+              margin-top: 4px;
+            }
+            .summary-media-col {
+              display: none !important;
+            }
+            .summary-divider {
+              display: none !important;
             }
           }
           @media (min-width: 768px) and (max-width: 1023px) {
             .premium-table-header {
-              grid-template-columns: 100px 2.2fr 100px 120px;
+              grid-template-columns: 120px 2.2fr 110px 120px !important;
             }
             .premium-table-row {
-              grid-template-columns: 100px 2.2fr 100px 120px;
+              grid-template-columns: 120px 2.2fr 110px 120px !important;
             }
             .col-cat, .col-acc, .cell-cat, .cell-acc {
               display: none !important;
             }
             .tablet-only-inline {
-              display: inline;
+              display: inline !important;
             }
           }
 
@@ -1614,17 +2113,129 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             border-color: rgba(1, 88, 76, 0.15);
           }
 
-          @keyframes pulse-soft {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.9; }
+          .upcoming-row {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          .upcoming-row:hover {
+            transform: translateY(-1.5px);
+            background-color: rgba(1, 88, 76, 0.01) !important;
+            border-color: rgba(1, 88, 76, 0.2) !important;
+            box-shadow: 0 4px 12px rgba(1, 88, 76, 0.05);
+          }
+
+          @media (max-width: 767px) {
+            .upcoming-timeline-line {
+              display: none !important;
+            }
+            .upcoming-timeline-dot {
+              display: none !important;
+            }
+            .upcoming-timeline-row {
+              gap: 0 !important;
+            }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .date-group-card, .premium-table-row, .premium-mobile-card {
+              transition: none !important;
+              transform: none !important;
+            }
           }
         `}</style>
       </section>
+
         </div>
         <div className="receitas-rail-col">
+          {/* Card Compacto: Finnly IA */}
+          <div className="compact-insight-card ai-rail-card" style={{ 
+            minHeight: 250, 
+            height: 'auto', 
+            padding: '20px 16px',
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #EBF7F4 100%)', 
+            border: '1.5px solid rgba(1, 107, 76, 0.25)', 
+            boxShadow: '0 8px 32px rgba(1, 107, 76, 0.06)', 
+            display: 'flex', 
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Soft ambient glow effect in the corner */}
+            <div style={{
+              position: 'absolute',
+              top: '-40px',
+              right: '-40px',
+              width: '120px',
+              height: '120px',
+              background: 'radial-gradient(circle, rgba(1, 107, 76, 0.08) 0%, rgba(1, 107, 76, 0) 70%)',
+              pointerEvents: 'none'
+            }} />
+            <div className="compact-card-header" style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ 
+                  background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-900) 100%)', 
+                  padding: 8, 
+                  borderRadius: 10, 
+                  boxShadow: '0 4px 12px rgba(1,88,76,0.2)',
+                  animation: 'pulse-soft 2s infinite ease-in-out',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Sparkles size={18} color="white" />
+                </div>
+                <span className="compact-card-title">FINNLY IA</span>
+              </div>
+              <CardInfoTooltip content="Sugestões inteligentes para entender melhor suas entradas e oportunidades." />
+            </div>
+            
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4, position: 'relative', zIndex: 1 }}>
+              Entenda suas receitas, pendências e oportunidades com ajuda da IA.
+            </p>
+            
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'auto', position: 'relative', zIndex: 1 }}>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Analisar receitas")}>
+                Analisar receitas
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Minha renda está concentrada?")}>
+                Renda concentrada?
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Previsão do mês")}>
+                Previsão do mês
+              </button>
+              <button className="ia-action-chip" onClick={() => onAsk?.("Como aumentar renda?")}>
+                Como aumentar renda?
+              </button>
+            </div>
+            
+            <button className="btn-primary" style={{ width: '100%', marginTop: 24, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, position: 'relative', zIndex: 1 }} onClick={() => onAsk?.("Gostaria de falar com o Finnly IA sobre minhas receitas.")}>
+              <Sparkles size={16} /> Perguntar ao Finnly IA
+            </button>
+            
+            <style jsx>{`
+              .ia-action-chip {
+                display: flex;
+                align-items: center;
+                padding: 6px 12px;
+                background: white;
+                border: 1px solid var(--line-soft);
+                border-radius: 16px;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--ink);
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+              }
+              .ia-action-chip:hover {
+                transform: translateY(-1px);
+                border-color: var(--teal);
+                color: var(--teal-900);
+                box-shadow: 0 4px 8px rgba(1,88,76,0.1);
+              }
+            `}</style>
+          </div>
           {/* Card Compacto: Receitas do Período */}
-          <div className="compact-insight-card period-card">
-            <div className="compact-card-header">
+          <div className="compact-insight-card period-card">            <div className="compact-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 14, background: 'rgba(1, 88, 76, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Wallet size={14} className="compact-card-icon" />
@@ -1737,194 +2348,240 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
           </div>
 
-          {/* Card Compacto: Saúde da Receita */}
-          <div className="compact-insight-card period-card">
-            {/* Header */}
-            <div className="compact-card-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 14, background: 'rgba(1, 88, 76, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <HeartPulse size={14} style={{ color: 'var(--teal)' }} />
+          {/* Card Compacto: Próximos Recebimentos Premium */}
+          <div className="compact-insight-card" style={{ minHeight: 250, maxHeight: 420, height: 'auto', padding: '20px 16px' }}>
+            <div className="compact-card-header" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ 
+                  width: 36, 
+                  height: 36, 
+                  borderRadius: 12, 
+                  background: 'rgba(1, 88, 76, 0.06)', 
+                  color: 'var(--teal)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <CalendarClock size={18} />
                 </div>
-                <span className="compact-card-title">SAÚDE DA RECEITA</span>
+                <div>
+                  <span className="compact-card-title" style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>PRÓXIMOS RECEBIMENTOS</span>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '2px 0 0 0', fontWeight: 500 }}>Valores que entrarão em sua conta em breve.</p>
+                </div>
               </div>
-              <CardInfoTooltip content="Qualidade geral e previsibilidade das entradas." />
+              <CardInfoTooltip content="Mostra as próximas receitas pendentes ou atrasadas do período selecionado." />
             </div>
-            
-            {/* Body */}
-            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Top Section: Gauge + Badge/Description */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {/* Circular Gauge */}
-                <div style={{ width: 76, height: 76, position: 'relative', flexShrink: 0 }}>
-                  <svg viewBox="0 0 76 76" style={{ width: 76, height: 76, transform: 'rotate(-90deg)', filter: 'drop-shadow(0px 2px 6px rgba(1, 107, 76, 0.15))' }}>
-                    <circle cx="38" cy="38" r="31" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
-                    <circle 
-                      cx="38" cy="38" r="31" fill="none" 
-                      stroke={strokeColor} strokeWidth="5.5" 
-                      strokeDasharray="194.78"
-                      strokeDashoffset={`${194.78 * (1 - saudeMetrics.score / 100)}`}
-                      strokeLinecap="round"
-                      style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
-                    />
-                  </svg>
-                  <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
-                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 21, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
-                    <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 700, marginTop: 0.5 }}>/100</span>
+
+            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', justifyContent: upcomingReceipts.length === 0 ? 'center' : 'flex-start' }}>
+              {upcomingReceipts.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px 16px', gap: 12, width: '100%', background: 'var(--surface)', border: '1px dashed var(--line)', borderRadius: 16 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(40, 167, 69, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)' }}>
+                    <Check size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--teal-900)', margin: 0 }}>Nenhum recebimento previsto</h4>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>Você não possui entradas pendentes para os próximos dias.</p>
+                  </div>
+                  <button 
+                    className="btn-primary" 
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      borderRadius: 99,
+                      background: 'var(--teal)',
+                      color: 'white',
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(1, 88, 76, 0.12)'
+                    }} 
+                    onClick={() => setShowIncomeModal(true)}
+                  >
+                    Nova receita
+                  </button>
+                </div>
+              ) : (
+                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+                  {/* Subtle timeline dashed line */}
+                  <div className="upcoming-timeline-line" style={{
+                    position: 'absolute',
+                    left: 11,
+                    top: 20,
+                    bottom: 20,
+                    borderLeft: '1.5px dashed rgba(13, 61, 55, 0.15)',
+                    pointerEvents: 'none',
+                    zIndex: 1
+                  }} />
+
+                  {upcomingReceipts.map((item, idx) => {
+                    const isFirst = idx === 0
+                    const rel = getRelativeDateLabel(item.date)
+                    const isOverdue = getTransactionStatus(item.payment_status, item.date) === 'overdue'
+                    const subtext = getUpcomingSubtext(item)
+                    const CatIcon = getCategoryIcon(item.category, item.description)
+                    
+                    return (
+                      <div key={item.id} className="upcoming-timeline-row" style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%' }}>
+                        {/* Dot marker */}
+                        <div className="upcoming-timeline-dot" style={{ width: 24, display: 'flex', justifyContent: 'center', zIndex: 2, flexShrink: 0 }}>
+                          <div style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            background: isOverdue ? 'var(--neg)' : isFirst ? 'var(--teal-900)' : 'rgba(13, 61, 55, 0.25)',
+                            border: '2px solid white',
+                            boxShadow: '0 0 0 1px rgba(13, 61, 55, 0.12)'
+                          }} />
+                        </div>
+
+                        {/* Inner card horizontal */}
+                        <div 
+                          className="upcoming-row"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            borderRadius: 16,
+                            background: 'white',
+                            border: isOverdue ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--line-soft)',
+                            boxShadow: '0 2px 8px -2px rgba(13, 61, 55, 0.02)',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: 0,
+                            gap: 12
+                          }}
+                          onClick={() => setEditIncome(item)}
+                          title="Clique para editar esta receita"
+                        >
+                          {/* Icon + Titles */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                            <div style={{ 
+                              width: 32, 
+                              height: 32, 
+                              borderRadius: 10, 
+                              background: isOverdue ? 'rgba(239, 68, 68, 0.05)' : 'rgba(1, 88, 76, 0.04)', 
+                              color: isOverdue ? 'var(--neg)' : 'var(--teal)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <CatIcon size={14} />
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.description || item.category}
+                              </span>
+                              {subtext ? (
+                                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {subtext}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {/* Date and Relative Badge */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)' }}>
+                              <CalendarDays size={11} />
+                              <span style={{ fontSize: 10, fontWeight: 600 }}>{formatShortDate(item.date)}</span>
+                            </div>
+                            <span style={{
+                              fontSize: 9,
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              background: rel.bg,
+                              color: rel.color,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {rel.label}
+                            </span>
+                          </div>
+
+                          {/* Dotted Vertical separator */}
+                          <div style={{ width: 1, height: 28, borderLeft: '1px dashed var(--line-soft)', flexShrink: 0 }} />
+
+                          {/* Value */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, minWidth: 70 }}>
+                            <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 800, color: rel.valueColor }}>
+                              + R$ {brl(Number(item.amount))}
+                            </span>
+                            {isOverdue && (
+                              <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--neg)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: 1 }}>
+                                Vencido
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Summary Banner */}
+            {upcomingReceipts.length > 0 && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: '10px 14px', 
+                background: 'rgba(1, 88, 76, 0.03)', 
+                border: '1px solid var(--line-soft)', 
+                borderRadius: 16,
+                marginTop: 6
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ 
+                    width: 30, 
+                    height: 30, 
+                    borderRadius: 8, 
+                    background: 'rgba(1, 88, 76, 0.08)', 
+                    color: 'var(--teal)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
+                    <Wallet size={14} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total previsto para receber</span>
+                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 800, color: 'var(--teal-900)' }}>
+                      + R$ {brl(totalUpcomingAmount)}
+                    </span>
                   </div>
                 </div>
-
-                {/* Status Badge + Description */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-                  {/* Status Badge */}
-                  {(() => {
-                    const getBadgeDetails = (status: string) => {
-                      if (status === 'healthy') {
-                        return {
-                          text: 'SAUDÁVEL',
-                          bg: 'rgba(40,167,69,0.08)',
-                          color: 'var(--green)',
-                          icon: <CheckCircle2 size={8} />
-                        }
-                      }
-                      if (status === 'light_attention') {
-                        return {
-                          text: 'ATENÇÃO LEVE',
-                          bg: 'rgba(255,179,0,0.08)',
-                          color: '#A06E00',
-                          icon: <AlertTriangle size={8} />
-                        }
-                      }
-                      if (status === 'attention') {
-                        return {
-                          text: 'ATENÇÃO MODERADA',
-                          bg: 'rgba(255,179,0,0.08)',
-                          color: '#A06E00',
-                          icon: <AlertTriangle size={8} />
-                        }
-                      }
-                      if (status === 'critical') {
-                        return {
-                          text: 'CRÍTICO',
-                          bg: 'rgba(239,68,68,0.08)',
-                          color: 'var(--neg)',
-                          icon: <AlertTriangle size={8} />
-                        }
-                      }
-                      return {
-                        text: 'SEM DADOS',
-                        bg: 'var(--surface-2)',
-                        color: 'var(--muted)',
-                        icon: <Info size={8} />
-                      }
-                    }
-                    const badge = getBadgeDetails(saudeMetrics.status)
-                    return (
-                      <span 
-                        style={{ 
-                          fontSize: 8, 
-                          padding: '2px 6px', 
-                          borderRadius: 6, 
-                          fontWeight: 800, 
-                          background: badge.bg, 
-                          color: badge.color,
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 3, 
-                          letterSpacing: '0.05em',
-                          alignSelf: 'flex-start'
-                        }}
-                      >
-                        {badge.icon}
-                        {badge.text}
-                      </span>
-                    )
-                  })()}
-
-                  <p className="compact-card-subtitle" style={{ fontSize: 11.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.3, whiteSpace: 'normal' }}>
-                    {saudeMetrics.description}
-                  </p>
+                
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8,
+                  background: 'white',
+                  border: '1px solid var(--line-soft)',
+                  padding: '6px 12px',
+                  borderRadius: 10,
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <TrendingUp size={14} style={{ color: 'var(--teal)' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--teal-900)' }}>
+                      {upcomingReceipts.length} recebimento{upcomingReceipts.length > 1 ? 's' : ''}
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--muted)' }}>
+                      {footerRangeLabel}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {/* Bottom Section: 3 Indicators */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                {/* Previsibilidade */}
-                {(() => {
-                  const level = saudeMetrics.indicators.predictability.level
-                  const isGood = level === 'good'
-                  const isMedium = level === 'medium'
-                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
-                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
-                  const text = isGood ? 'alta' : isMedium ? 'média' : 'baixa'
-                  return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {isGood ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Previsibilidade</span>
-                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* Concentração */}
-                {(() => {
-                  const level = saudeMetrics.indicators.diversification.level
-                  const isGood = level === 'good'
-                  const isMedium = level === 'medium'
-                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
-                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
-                  const text = isGood ? 'baixa' : isMedium ? 'moderada' : 'alta'
-                  return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Users size={11} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Concentração</span>
-                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* Atrasos */}
-                {(() => {
-                  const level = saudeMetrics.indicators.delays.level
-                  const isGood = level === 'good'
-                  const isMedium = level === 'medium'
-                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
-                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
-                  const text = isGood ? 'controlados' : isMedium ? 'leves' : 'graves'
-                  return (
-                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <CheckCircle2 size={11} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Atrasos</span>
-                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="compact-insight-footer">
-              <button 
-                className="compact-card-action premium-action"
-                style={{ margin: 0 }}
-                onClick={() => { setInsightDrawerType('health'); setInsightDrawerOpen(true); }}
-                aria-label="Ver detalhes de Saúde da Receita"
-              >
-                Ver mais <div className="action-icon-wrapper"><ChevronRight size={12} /></div>
-              </button>
-            </div>
+            )}
           </div>
+
+
         </div>
       </div>
 
@@ -2172,90 +2829,197 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           </div>
         </div>
         <div className="col-4">
-          <div className="card" style={{ 
-            height: '100%', 
-            padding: '24px', 
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #EBF7F4 100%)', 
-            border: '1.5px solid rgba(1, 107, 76, 0.25)', 
-            boxShadow: '0 8px 32px rgba(1, 107, 76, 0.06)', 
-            display: 'flex', 
-            flexDirection: 'column',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Soft ambient glow effect in the corner */}
-            <div style={{
-              position: 'absolute',
-              top: '-40px',
-              right: '-40px',
-              width: '120px',
-              height: '120px',
-              background: 'radial-gradient(circle, rgba(1, 107, 76, 0.08) 0%, rgba(1, 107, 76, 0) 70%)',
-              pointerEvents: 'none'
-            }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, position: 'relative', zIndex: 1 }}>
+          <div className="card" style={{ height: '100%', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ 
-                  background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-900) 100%)', 
-                  padding: 8, 
-                  borderRadius: 10, 
-                  boxShadow: '0 4px 12px rgba(1,88,76,0.2)',
-                  animation: 'pulse-soft 2s infinite ease-in-out'
-                }}>
-                  <Sparkles size={18} color="white" />
+                <div style={{ background: 'rgba(1, 88, 76, 0.08)', padding: 6, borderRadius: 8, color: 'var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <HeartPulse size={16} />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--teal-900)' }}>FINNLY IA</span>
+                <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
+                  Saúde da Receita
+                </div>
               </div>
-              <CardInfoTooltip content="Sugestões inteligentes para entender melhor suas entradas e oportunidades." />
+              <CardInfoTooltip content="Qualidade geral e previsibilidade das entradas." />
             </div>
             
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4 }}>
-              Entenda suas receitas, pendências e oportunidades com ajuda da IA.
-            </p>
-            
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'auto' }}>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Analisar receitas")}>
-                Analisar receitas
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Minha renda está concentrada?")}>
-                Renda concentrada?
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Previsão do mês")}>
-                Previsão do mês
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Como aumentar renda?")}>
-                Como aumentar renda?
+            {/* Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+              {/* Top Section: Gauge + Badge/Description */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Circular Gauge */}
+                <div style={{ width: 76, height: 76, position: 'relative', flexShrink: 0 }}>
+                  <svg viewBox="0 0 76 76" style={{ width: 76, height: 76, transform: 'rotate(-90deg)', filter: 'drop-shadow(0px 2px 6px rgba(1, 107, 76, 0.15))' }}>
+                    <circle cx="38" cy="38" r="31" fill="none" stroke="var(--surface-2)" strokeWidth="5.5" />
+                    <circle 
+                      cx="38" cy="38" r="31" fill="none" 
+                      stroke={strokeColor} strokeWidth="5.5" 
+                      strokeDasharray="194.78"
+                      strokeDashoffset={`${194.78 * (1 - saudeMetrics.score / 100)}`}
+                      strokeLinecap="round"
+                      style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+                    />
+                  </svg>
+                  <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', inset: 0 }}>
+                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 21, fontWeight: 900, color: 'var(--teal-900)', lineHeight: 1 }}>{saudeMetrics.score}</span>
+                    <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 700, marginTop: 0.5 }}>/100</span>
+                  </div>
+                </div>
+
+                {/* Status Badge + Description */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                  {/* Status Badge */}
+                  {(() => {
+                    const getBadgeDetails = (status: string) => {
+                      if (status === 'healthy') {
+                        return {
+                          text: 'SAUDÁVEL',
+                          bg: 'rgba(40,167,69,0.08)',
+                          color: 'var(--green)',
+                          icon: <CheckCircle2 size={8} />
+                        }
+                      }
+                      if (status === 'light_attention') {
+                        return {
+                          text: 'ATENÇÃO LEVE',
+                          bg: 'rgba(255,179,0,0.08)',
+                          color: '#A06E00',
+                          icon: <AlertTriangle size={8} />
+                        }
+                      }
+                      if (status === 'attention') {
+                        return {
+                          text: 'ATENÇÃO MODERADA',
+                          bg: 'rgba(255,179,0,0.08)',
+                          color: '#A06E00',
+                          icon: <AlertTriangle size={8} />
+                        }
+                      }
+                      if (status === 'critical') {
+                        return {
+                          text: 'CRÍTICO',
+                          bg: 'rgba(239,68,68,0.08)',
+                          color: 'var(--neg)',
+                          icon: <AlertTriangle size={8} />
+                        }
+                      }
+                      return {
+                        text: 'SEM DADOS',
+                        bg: 'var(--surface-2)',
+                        color: 'var(--muted)',
+                        icon: <Info size={8} />
+                      }
+                    }
+                    const badge = getBadgeDetails(saudeMetrics.status)
+                    return (
+                      <span 
+                        style={{ 
+                          fontSize: 8, 
+                          padding: '2px 6px', 
+                          borderRadius: 6, 
+                          fontWeight: 800, 
+                          background: badge.bg, 
+                          color: badge.color,
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 3, 
+                          letterSpacing: '0.05em',
+                          alignSelf: 'flex-start'
+                        }}
+                      >
+                        {badge.icon}
+                        {badge.text}
+                      </span>
+                    )
+                  })()}
+
+                  <p className="compact-card-subtitle" style={{ fontSize: 11.5, color: 'var(--ink)', fontWeight: 600, margin: 0, lineHeight: 1.3, whiteSpace: 'normal' }}>
+                    {saudeMetrics.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom Section: 3 Indicators */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 'auto' }}>
+                {/* Previsibilidade */}
+                {(() => {
+                  const level = saudeMetrics.indicators.predictability.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'alta' : isMedium ? 'média' : 'baixa'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {isGood ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Previsibilidade</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Concentração */}
+                {(() => {
+                  const level = saudeMetrics.indicators.diversification.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'baixa' : isMedium ? 'moderada' : 'alta'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Users size={11} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Concentração</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Atrasos */}
+                {(() => {
+                  const level = saudeMetrics.indicators.delays.level
+                  const isGood = level === 'good'
+                  const isMedium = level === 'medium'
+                  const color = isGood ? 'var(--green)' : isMedium ? '#A06E00' : 'var(--neg)'
+                  const bg = isGood ? 'rgba(40,167,69,0.04)' : isMedium ? 'rgba(255,179,0,0.04)' : 'rgba(239,68,68,0.04)'
+                  const text = isGood ? 'controlados' : isMedium ? 'leves' : 'graves'
+                  return (
+                    <div style={{ background: bg, border: '1px solid rgba(0,0,0,0.02)', borderRadius: 10, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <CheckCircle2 size={11} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Atrasos</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: color, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{text}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="compact-insight-footer" style={{ marginTop: 20 }}>
+              <button 
+                className="compact-card-action premium-action"
+                style={{ margin: 0 }}
+                onClick={() => { setInsightDrawerType('health'); setInsightDrawerOpen(true); }}
+                aria-label="Ver detalhes de Saúde da Receita"
+              >
+                Ver mais <div className="action-icon-wrapper"><ChevronRight size={12} /></div>
               </button>
             </div>
-            
-            <button className="btn-primary" style={{ width: '100%', marginTop: 24, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => onAsk?.("Gostaria de falar com o Finnly IA sobre minhas receitas.")}>
-              <Sparkles size={16} /> Perguntar ao Finnly IA
-            </button>
-            
-            <style jsx>{`
-              .ia-action-chip {
-                display: flex;
-                align-items: center;
-                padding: 6px 12px;
-                background: white;
-                border: 1px solid var(--line-soft);
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: 600;
-                color: var(--ink);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-              }
-              .ia-action-chip:hover {
-                transform: translateY(-1px);
-                border-color: var(--teal);
-                color: var(--teal-900);
-                box-shadow: 0 4px 8px rgba(1,88,76,0.1);
-              }
-            `}</style>
           </div>
         </div>
+
       </div>
 
       {(showIncomeModal || editIncome) && (

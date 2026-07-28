@@ -1,5 +1,5 @@
 /* ============================================================
-   Finnly Dashboard — Design tokens & component styles
+   Finnly Dashboard â€” Design tokens & component styles
    ============================================================ */
 
 :root {
@@ -378,7 +378,7 @@
   pointer-events: none;
 }
 
-/* Evitar tooltips saltando/abrindo durante a transição da sidebar */
+/* Evitar tooltips saltando/abrindo durante a transiÃ§Ã£o da sidebar */
 .sidebar-transitioning .tooltip {
   display: none !important;
   opacity: 0 !important;
@@ -386,7 +386,7 @@
   transition: none !important;
 }
 
-/* Suporte à acessibilidade: Redução de movimento */
+/* Suporte Ã  acessibilidade: ReduÃ§Ã£o de movimento */
 @media (prefers-reduced-motion: reduce) {
   .app,
   .sidebar,
@@ -1116,7 +1116,7 @@
   .filter-bar .search-input { flex: 1 1 100%; order: 3; }
   .filter-bar .btn-ghost { flex: 1 1 100%; order: 4; justify-content: center; }
 
-  /* Modals → bottom sheet */
+  /* Modals â†’ bottom sheet */
   .modal-box {
     position: fixed;
     bottom: 0; left: 0; right: 0; top: auto;
@@ -1129,7 +1129,7 @@
   .modal-body { padding: 16px 18px; }
   .modal-foot { padding: 12px 18px calc(env(safe-area-inset-bottom, 0px) + 16px); }
 
-  /* Info tooltip → fixed toast at bottom */
+  /* Info tooltip â†’ fixed toast at bottom */
   .info-bubble {
     position: fixed;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
@@ -1910,7 +1910,7 @@
 }
 
 
-/* ============================================================ CUSTOMIZAÇÃO DE LAYOUT */
+/* ============================================================ CUSTOMIZAÃ‡ÃƒO DE LAYOUT */
 .layout-customize-btn {
   display: flex;
   align-items: center;
@@ -2494,7 +2494,7 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
-/* ============================================================ SAÚDE DA RECEITA PREMIUM CARD */
+/* ============================================================ SAÃšDE DA RECEITA PREMIUM CARD */
 .premium-health-card {
   background: #FCFAF7;
   border-radius: 24px;
@@ -2752,7 +2752,7 @@ input:focus, select:focus, textarea:focus {
   text-overflow: ellipsis;
 }
 
-/* ============================================================ REALIZAÇÃO DO MÊS PREMIUM CARD */
+/* ============================================================ REALIZAÃ‡ÃƒO DO MÃŠS PREMIUM CARD */
 .premium-realizacao-card {
   background: #FCFAF7;
   border-radius: 24px;
@@ -3072,7 +3072,7 @@ input:focus, select:focus, textarea:focus {
   text-overflow: ellipsis;
 }
 
-/* ============================================================ RECEITAS DO PERÍODO PREMIUM CARD */
+/* ============================================================ RECEITAS DO PERÃODO PREMIUM CARD */
 .premium-periodo-card {
   background: #FCFAF7;
   border-radius: 24px;
@@ -3476,7 +3476,7 @@ input:focus, select:focus, textarea:focus {
 .compact-card-title {
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink); /* Mais escuro e visível */
+  color: var(--ink); /* Mais escuro e visÃ­vel */
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -3767,7 +3767,7 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
-/* ============================================================ DRAWER PREMIUM (RECEITAS DO PERÍODO) */
+/* ============================================================ DRAWER PREMIUM (RECEITAS DO PERÃODO) */
 .drawer-content-section {
   padding: 32px 32px 0 32px;
 }
@@ -3925,3 +3925,19 @@ input:focus, select:focus, textarea:focus {
   margin-top: auto;
 }
 
+/* ============================================================ AI NEON BORDER */
+.neon-border-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  animation: rotate-neon-border 3s linear infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@keyframes rotate-neon-border {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}

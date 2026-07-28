@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
 
 interface Option {
   value: string
   label: string
-  icon?: string
+  icon?: React.ReactNode | string
   color?: string
 }
 
@@ -14,13 +15,23 @@ interface CustomSelectProps {
   options: Option[]
   placeholder?: string
   id?: string
+  disabled?: boolean
 }
 
-export function CustomSelect({ value, onChange, options, placeholder = 'Selecione...', id }: CustomSelectProps) {
+export function CustomSelect({ value, onChange, options, placeholder = 'Selecione...', id, disabled = false }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   
   const selectedOption = options.find(o => o.value === value)
+
+  const renderIcon = (icon: React.ReactNode | string | undefined, color?: string) => {
+    if (!icon) return null
+    if (typeof icon === 'string') {
+      const IconComp = (LucideIcons as any)[icon]
+      return IconComp ? <IconComp size={16} color={color} /> : null
+    }
+    return icon
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -54,43 +65,49 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
       `}</style>
       <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <button
-        id={id}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        id={id}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         style={{
           width: '100%',
-          padding: '11px 14px',
-          fontSize: 13,
-          fontWeight: 800,
-          borderRadius: 12,
-          border: '1px solid',
-          borderColor: isOpen ? 'var(--teal)' : 'var(--border)',
-          background: 'var(--surface-2)',
-          color: selectedOption ? 'var(--ink)' : 'var(--muted)',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          cursor: 'pointer',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          background: disabled ? 'var(--surface-2)' : '#ffffff',
+          border: isOpen ? '1px solid var(--teal)' : '1px solid var(--border)',
+          borderRadius: 12,
+          cursor: disabled ? 'not-allowed' : 'pointer',
           outline: 'none',
           transition: 'all 0.2s',
+          boxShadow: isOpen ? '0 0 0 4px rgba(1, 88, 76, 0.08)' : 'none',
+          opacity: disabled ? 0.6 : 1,
           textAlign: 'left'
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, overflow: 'hidden' }}>
           {selectedOption?.color && (
-            <span style={{ 
-              width: 8, 
-              height: 8, 
-              borderRadius: '50%', 
-              background: selectedOption.color,
-              display: 'inline-block',
-              flexShrink: 0
-            }} />
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: selectedOption.color, display: 'inline-block', flexShrink: 0 }} />
           )}
-          <span>{selectedOption ? selectedOption.label : placeholder}</span>
-        </span>
+          {selectedOption?.icon && (
+            <span style={{ display: 'flex', alignItems: 'center', color: selectedOption.color || 'var(--muted)', flexShrink: 0 }}>
+              {renderIcon(selectedOption.icon, selectedOption.color)}
+            </span>
+          )}
+          <span style={{ 
+            color: selectedOption ? 'var(--ink)' : 'var(--muted)',
+            fontWeight: selectedOption ? 500 : 400,
+            fontSize: 13,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        </div>
         <ChevronDown 
           size={16} 
           style={{ 
@@ -149,7 +166,7 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
                 style={{
                   padding: '10px 12px',
                   fontSize: 13,
-                  fontWeight: isSelected || isNewOption ? 800 : 600,
+                  fontWeight: isSelected || isNewOption ? 600 : 500,
                   borderRadius: 8,
                   cursor: 'pointer',
                   background: isSelected ? 'rgba(1, 88, 76, 0.08)' : 'transparent',
@@ -179,6 +196,11 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Selecion
                     display: 'inline-block',
                     flexShrink: 0
                   }} />
+                )}
+                {opt.icon && (
+                  <span style={{ display: 'flex', alignItems: 'center', color: opt.color || 'var(--muted)', flexShrink: 0 }}>
+                    {renderIcon(opt.icon, opt.color)}
+                  </span>
                 )}
                 <span>{opt.label}</span>
               </li>

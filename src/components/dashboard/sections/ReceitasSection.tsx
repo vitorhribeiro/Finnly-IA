@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState, useTransition, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import {
   Plus, X, Pencil, TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
   ArrowDown, Search, Filter, CalendarClock, CheckCircle2, Sparkles, AlertCircle, AlertTriangle, Percent, PieChart, Copy, Users, Info,
   HeartPulse, Wallet, MoreHorizontal, Trash2, Check, Calendar, Shield,
-  ShoppingCart, User, Globe, PiggyBank, Coins, DollarSign, CalendarDays
+  ShoppingCart, User, Globe, PiggyBank, Coins, DollarSign, CalendarDays,
+  QrCode, ArrowRightLeft, Banknote, Barcode, Landmark, CreditCard, HelpCircle
 } from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
 import { CardInfoTooltip } from '@/components/ui/CardInfoTooltip'
 import { getTransactionStatus } from '@/lib/utils'
 import { calculateIncomeHealthScore } from '@/utils/financialHealth'
@@ -15,8 +18,11 @@ import { getIncomeCategories } from '@/app/dashboard/actions/income-categories'
 import { getAccounts } from '@/app/dashboard/actions/accounts'
 import type { Income, IncomeCategory, Account } from '@/types/database'
 import { PremiumIncomeModal } from './PremiumIncomeModal'
+import { DeleteRevenueModal } from './DeleteRevenueModal'
+import { UnmarkRevenueModal } from './UnmarkRevenueModal'
 import TransactionsFilterDrawer, { FilterState, defaultFilterState } from '@/components/dashboard/filters/TransactionsFilterDrawer'
 import { IncomeInsightDrawer } from '@/components/dashboard/drawers/IncomeInsightDrawer'
+import { buildRevenueAIModel, RevenueAICard } from './revenue-ai-card'
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -91,7 +97,7 @@ function getGroupSummary(items: Income[]) {
   return `R$ ${brl(total)} em entradas`
 }
 
-export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (seed?: string) => void }) {
+export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (question: string, context?: any) => void }) {
   const [allIncomes, setAllIncomes] = useState<Income[]>([])
   const [categories, setCategories] = useState<IncomeCategory[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -115,6 +121,16 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [showIncomeModal, setShowIncomeModal] = useState(false)
   const [editIncome, setEditIncome] = useState<Income | null>(null)
 
+  // Delete Modal
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; revenue: Income | null }>({ open: false, revenue: null })
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Unmark Modal
+  const [unmarkModal, setUnmarkModal] = useState<{ open: boolean; revenue: Income | null }>({ open: false, revenue: null })
+  const [isUpdatingRevenueStatus, setIsUpdatingRevenueStatus] = useState(false)
+  const [unmarkError, setUnmarkError] = useState<string | null>(null)
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -122,6 +138,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
   // State to track active menu row
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [openSwipeRowId, setOpenSwipeRowId] = useState<string | null>(null)
 
   // Group collapsing state
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
@@ -172,11 +189,36 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     setCurrentPage(1)
   }, [selectedMonth, searchQuery, filterState, statusTab])
 
-  function handleDelete(id: string) {
-    startTransition(async () => {
-      await deleteIncome(id)
-      await load()
-    })
+  function requestDelete(income: Income) {
+    setDeleteModal({ open: true, revenue: income })
+    setActiveMenuId(null)
+    setOpenSwipeRowId(null)
+  }
+
+  function handleCloseDeleteModal() {
+    if (isDeleting) return
+    setDeleteModal(curr => ({ ...curr, open: false }))
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteModal.revenue) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteIncome(deleteModal.revenue.id)
+      await load() // atualiza listagem e KPIs
+      setDeleteModal(curr => ({ ...curr, open: false }))
+      // A receita não é removida daqui do state até a animação de saída concluir.
+    } catch (err: unknown) {
+      setDeleteError('Não foi possível excluir esta receita. Tente novamente.')
+      setIsDeleting(false)
+    }
+  }
+
+  function handleExitCompleteDelete() {
+    setDeleteModal({ open: false, revenue: null })
+    setIsDeleting(false)
+    setDeleteError(null)
   }
 
   function handleSaved() {
@@ -218,32 +260,54 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     })
   }
 
+  function requestUnmark(income: Income) {
+    setUnmarkModal({ open: true, revenue: income })
+    setActiveMenuId(null)
+    setOpenSwipeRowId(null)
+  }
+
+  function handleCloseUnmarkModal() {
+    if (isUpdatingRevenueStatus) return
+    setUnmarkModal(curr => ({ ...curr, open: false }))
+  }
+
+  async function handleConfirmUnmarkRevenue() {
+    const income = unmarkModal.revenue
+    if (!income) return
+    setIsUpdatingRevenueStatus(true)
+    setUnmarkError(null)
+
+    try {
+      const fd = new FormData()
+      fd.append('amount', String(income.amount))
+      fd.append('category', income.category)
+      if (income.description) fd.append('description', income.description)
+      fd.append('date', income.date)
+      fd.append('is_recurring', String(income.is_recurring))
+      if (income.notes) fd.append('notes', income.notes)
+      if (income.account_id) fd.append('account_id', income.account_id)
+      fd.append('payment_status', 'false')
+      if (income.income_type) fd.append('income_type', income.income_type)
+      if (income.income_method) fd.append('income_method', income.income_method)
+      if (income.tags && income.tags.length > 0) fd.append('tags', income.tags.join(','))
+      
+      await updateIncome(income.id, fd)
+      await load()
+      setUnmarkModal(curr => ({ ...curr, open: false }))
+    } catch (err: unknown) {
+      setUnmarkError('Não foi possível desmarcar esta receita. Tente novamente.')
+      setIsUpdatingRevenueStatus(false)
+    }
+  }
+
+  function handleUnmarkModalExitComplete() {
+    setUnmarkModal({ open: false, revenue: null })
+    setIsUpdatingRevenueStatus(false)
+    setUnmarkError(null)
+  }
+
   function handleToggleStatusToUnpaid(income: Income) {
-    if (!confirm("Tem certeza que deseja desmarcar esta receita como recebida?")) return
-    setSavingItemId(income.id)
-    startTransition(async () => {
-      try {
-        const fd = new FormData()
-        fd.append('amount', String(income.amount))
-        fd.append('category', income.category)
-        if (income.description) fd.append('description', income.description)
-        fd.append('date', income.date)
-        fd.append('is_recurring', String(income.is_recurring))
-        if (income.notes) fd.append('notes', income.notes)
-        if (income.account_id) fd.append('account_id', income.account_id)
-        fd.append('payment_status', 'false')
-        if (income.income_type) fd.append('income_type', income.income_type)
-        if (income.income_method) fd.append('income_method', income.income_method)
-        if (income.tags && income.tags.length > 0) fd.append('tags', income.tags.join(','))
-        
-        await updateIncome(income.id, fd)
-        await load()
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setSavingItemId(null)
-      }
-    })
+    requestUnmark(income)
   }
 
   // --- KPIs and Metrics (Based on Global selectedMonth) ---
@@ -252,6 +316,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
   const recebido = currentIncomes.filter(i => getTransactionStatus(i.payment_status, i.date) === 'paid').reduce((s, i) => s + Number(i.amount), 0)
   const pendente = currentIncomes.filter(i => getTransactionStatus(i.payment_status, i.date) === 'pending').reduce((s, i) => s + Number(i.amount), 0)
   const atrasado = currentIncomes.filter(i => getTransactionStatus(i.payment_status, i.date) === 'overdue').reduce((s, i) => s + Number(i.amount), 0)
+  const overdueCount = currentIncomes.filter(i => getTransactionStatus(i.payment_status, i.date) === 'overdue').length
 
   // Composição
   const receitaFixa = currentIncomes.filter(i => i.income_type === 'fixed').reduce((s, i) => s + Number(i.amount), 0)
@@ -775,6 +840,49 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
     return groups
   }, [paginatedIncomes])
 
+  const incomeConcentrationPercentage = useMemo(() => {
+    if (totalPeriodo === 0 || catRanking.length === 0) return 0
+    return Math.round((catRanking[0][1] / totalPeriodo) * 100)
+  }, [totalPeriodo, catRanking])
+
+  const comparisonWithPreviousMonth = useMemo(() => {
+    if (history4m.length < 2) return 0
+    const lastMonth = history4m[1]?.total || 0
+    if (lastMonth === 0) return 0
+    return Math.round(((totalPeriodo - lastMonth) / lastMonth) * 100)
+  }, [totalPeriodo, history4m])
+
+  const revenueAIModel = useMemo(() => {
+    return buildRevenueAIModel({
+      hasRevenueData: allIncomes.length > 0,
+      totalPeriodo,
+      recebido,
+      pendente,
+      atrasado,
+      overdueCount,
+      pctRealizacaoRaw,
+      saudeScore: saudeMetrics.score,
+      incomeConcentrationPercentage,
+      comparisonWithPreviousMonth
+    })
+  }, [allIncomes.length, totalPeriodo, recebido, pendente, atrasado, overdueCount, pctRealizacaoRaw, saudeMetrics.score, incomeConcentrationPercentage, comparisonWithPreviousMonth])
+
+  const revenueAIContextPayload = useMemo(() => ({
+    source: 'revenue-ai-card' as const,
+    tone: revenueAIModel.tone,
+    period: selectedMonth,
+    expectedAmount: totalPeriodo,
+    receivedAmount: recebido,
+    pendingAmount: pendente,
+    pendingPercentage: totalPeriodo > 0 ? (pendente / totalPeriodo) * 100 : 0,
+    overdueAmount: atrasado,
+    overdueCount,
+    realizationPercentage: pctRealizacaoRaw,
+    incomeConcentrationPercentage,
+    comparisonWithPreviousMonth
+  }), [revenueAIModel.tone, selectedMonth, totalPeriodo, recebido, pendente, atrasado, overdueCount, pctRealizacaoRaw, incomeConcentrationPercentage, comparisonWithPreviousMonth])
+
+
   return (
     <div className="fd-stack fade-up" style={{ gap: 16 }}>
       <div className="topbar-inline" style={{ marginBottom: 8, justifyContent: 'flex-end' }}>
@@ -1195,30 +1303,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             )
           ) : (
             <div className="premium-list-container">
-              {/* Header (desktop/tablet only) */}
-              <div className="premium-table-header desktop-tablet-only" style={{
-                display: 'grid',
-                gridTemplateColumns: '120px 2fr 1.2fr 1.2fr 100px 120px',
-                gap: 12,
-                alignItems: 'center',
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--line-soft)',
-                fontSize: 11,
-                fontWeight: 700,
-                color: 'var(--muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                background: 'rgba(0,0,0,0.01)',
-                marginBottom: 8,
-                borderRadius: 8
-              }}>
-                <div className="col-sit">Situação</div>
-                <div className="col-desc">Descrição</div>
-                <div className="col-cat" style={{ paddingLeft: 6 }}>Categoria</div>
-                <div className="col-acc">Conta</div>
-                <div className="col-val" style={{ textAlign: 'right', paddingRight: 8 }}>Valor</div>
-                <div className="col-actions"></div>
-              </div>
+              {/* Header removido em favor dos cards auto-explicativos */}
 
               <div className="premium-rows-container">
                 {groupedIncomes.map(group => {
@@ -1230,45 +1315,44 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '14px 16px',
-                        background: 'var(--surface-2)',
+                        padding: '14px 18px',
+                        background: 'transparent',
                         borderBottom: isCollapsed ? 'none' : '1px solid var(--line-soft)',
                         cursor: 'pointer',
                         userSelect: 'none',
                         transition: 'background 0.2s ease'
                       }} onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.date]: !isCollapsed }))}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--line-soft)',
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            background: '#073F36',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: 'var(--teal)',
-                            boxShadow: 'var(--shadow-sm)'
+                            color: 'white',
+                            boxShadow: '0 4px 12px rgba(7, 63, 54, 0.15)'
                           }}>
-                            <Calendar size={15} />
+                            <Calendar size={16} />
                           </div>
-                          <div>
-                            <span className="group-date" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span className="group-date" style={{ fontSize: 15, fontWeight: 700, color: '#133C36' }}>
                               {formatGroupDate(group.date)}
                             </span>
-                            <div className="group-summary-subtitle" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                            <div className="group-summary-subtitle" style={{ fontSize: 12, color: '#71817E', marginTop: 1 }}>
                               {group.items.length} receita{group.items.length !== 1 ? 's' : ''}
                             </div>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total do dia</span>
-                            <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#71817E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total do dia</span>
+                            <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 15, fontWeight: 700, color: '#133C36', marginTop: 1 }}>
                               R$ {brl(groupTotal)}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--line-soft)', color: 'var(--muted)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: 'white', border: '1px solid var(--line-soft)', color: '#133C36', boxShadow: '0 2px 8px rgba(19, 60, 54, 0.04)' }}>
                             {isCollapsed ? <ChevronRight size={14} /> : <ArrowDown size={14} />}
                           </div>
                         </div>
@@ -1294,344 +1378,400 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
                             else if (item.is_recurring) valSub = 'Recorrente'
                             
                             return (
-                              <div key={item.id} style={{ borderBottom: '1px solid var(--line-soft)' }}>
-                                {/* Desktop/Tablet Row */}
-                                <div 
-                                  className="premium-table-row desktop-tablet-only"
-                                  style={{
-                                    borderLeft: status === 'pending'
-                                      ? '3.5px solid var(--gold)'
-                                      : status === 'overdue'
-                                        ? '3.5px solid var(--neg)'
-                                        : '3.5px solid transparent',
-                                    background: status === 'pending'
-                                      ? 'rgba(255, 179, 0, 0.015)'
-                                      : status === 'overdue'
-                                        ? 'rgba(239, 68, 68, 0.015)'
-                                        : 'var(--surface)'
-                                  }}
-                                >
-                                  <div className="cell-sit" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                                    <span className={`status-badge-premium ${status}`}>
-                                      {status === 'paid' && '✓ Recebido'}
-                                      {status === 'pending' && '○ Pendente'}
-                                      {status === 'overdue' && '! Atrasado'}
-                                    </span>
-                                    <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                                      <span 
-                                        style={{ 
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          fontSize: '9px', 
-                                          fontWeight: 800,
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.05em',
-                                          padding: '2px 6px',
-                                          borderRadius: '6px',
-                                          background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
-                                          color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
-                                          border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
-                                        }}
-                                      >
-                                        {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="cell-desc" style={{ paddingLeft: 4 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
-                                      {item.description || item.category}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-                                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                        {descriptionSubtext}
-                                      </span>
-                                      <span className="tablet-only-inline" style={{ fontSize: 11, color: 'var(--muted)', display: 'none' }}>
-                                        · <span style={{ fontWeight: 600, color: catColor }}>{item.category}</span>
-                                        {account && ` · ${account.name}`}
-                                        {!account && ` · Sem conta`}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="cell-cat" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                                    <span className="category-badge-premium" style={{ backgroundColor: catColor + '10', color: catColor }}>
-                                      <span className="category-dot" style={{ backgroundColor: catColor }} />
-                                      {item.category}
-                                    </span>
-                                    {item.income_method && (
-                                      <span 
-                                        style={{ 
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          fontSize: '9px', 
-                                          fontWeight: 700,
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.05em',
-                                          padding: '1px 5px',
-                                          borderRadius: '4px',
-                                          background: 'rgba(94, 111, 105, 0.05)',
-                                          color: 'var(--muted)',
-                                          border: '1px solid rgba(94, 111, 105, 0.12)'
-                                        }}
-                                      >
-                                        {item.income_method === 'pix' ? 'Pix' :
-                                         item.income_method === 'transfer' ? 'TED' :
-                                         item.income_method === 'cash' ? 'Dinheiro' :
-                                         item.income_method === 'boleto' ? 'Boleto' :
-                                         item.income_method === 'deposit' ? 'Depósito' :
-                                         item.income_method === 'card' ? 'Cartão' :
-                                         item.income_method === 'other' ? 'Outro' :
-                                         item.income_method}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="cell-acc" style={{ display: 'flex', alignItems: 'center' }}>
-                                    {item.account_id ? (
-                                      account ? (
-                                        <span className="account-badge-premium active">
-                                          <Wallet size={12} style={{ color: 'var(--teal)', marginRight: 4 }} />
-                                          {account.name}
-                                        </span>
-                                      ) : (
-                                        <span className="account-badge-premium warning">
-                                          <AlertTriangle size={12} style={{ marginRight: 4 }} />
-                                          Conta não encontrada
-                                        </span>
-                                      )
-                                    ) : (
-                                      <span className="account-badge-premium warning">
-                                        <Shield size={12} style={{ marginRight: 4 }} />
-                                        Sem conta
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="cell-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
-                                    <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 700, color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)' }}>
-                                      + R$ {brl(Number(item.amount))}
-                                    </div>
-                                    {valSub && (
-                                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{valSub}</div>
-                                    )}
-                                  </div>
-                                  <div className="cell-actions" style={{ textAlign: 'right' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', position: 'relative' }} onClick={e => e.stopPropagation()}>
-                                      {status !== 'paid' && (
+                                <div key={item.id}>
+                                  {/* Desktop/Tablet Row */}
+                                  <div className="swipeable-container desktop-tablet-only">
+                                    <div className="swipe-actions-bg">
+                                      {status !== 'paid' ? (
                                         <button 
-                                          className="action-btn check-btn"
+                                          className="swipe-action-btn check"
                                           onClick={() => handleToggleStatus(item)}
                                           disabled={savingItemId !== null}
-                                          title="Marcar como recebida"
                                         >
-                                          {savingItemId === item.id ? <div className="spinner-small" /> : <CheckCircle2 size={12} />}
+                                          {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={16} />}
+                                          <span>Receber</span>
+                                        </button>
+                                      ) : (
+                                        <button 
+                                          className="swipe-action-btn uncheck"
+                                          onClick={() => handleToggleStatusToUnpaid(item)}
+                                          disabled={savingItemId !== null}
+                                        >
+                                          {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <X size={16} />}
+                                          <span>Desmarcar</span>
                                         </button>
                                       )}
-                                      
                                       <button 
-                                        className="action-btn"
+                                        className="swipe-action-btn edit"
                                         onClick={() => setEditIncome(item)}
-                                        title="Editar"
                                       >
-                                        <Pencil size={12} />
+                                        <Pencil size={16} />
+                                        <span>Editar</span>
                                       </button>
-                                      
                                       <button 
-                                        className="action-btn"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setActiveMenuId(activeMenuId === item.id ? null : item.id)
+                                        className="swipe-action-btn delete"
+                                        onClick={() => {
+                                          requestDelete(item)
                                         }}
-                                        title="Mais opções"
                                       >
-                                        <MoreHorizontal size={12} />
+                                        <Trash2 size={16} />
+                                        <span>Excluir</span>
                                       </button>
+                                    </div>
+
+                                    <motion.div 
+                                      drag="x"
+                                      dragDirectionLock
+                                      dragConstraints={{ left: -180, right: 0 }}
+                                      dragElastic={{ left: 0.1, right: 0.1 }}
+                                      animate={{ x: openSwipeRowId === item.id ? -180 : 0 }}
+                                      transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+                                      onDragEnd={(event, info) => {
+                                        if (info.offset.x < -60) {
+                                          setOpenSwipeRowId(item.id)
+                                        } else if (info.offset.x > 60) {
+                                          setOpenSwipeRowId(null)
+                                        } else {
+                                          if (info.velocity.x < -100) {
+                                            setOpenSwipeRowId(item.id)
+                                          } else if (info.velocity.x > 100) {
+                                            setOpenSwipeRowId(null)
+                                          }
+                                        }
+                                      }}
+                                      onClick={() => setOpenSwipeRowId(openSwipeRowId === item.id ? null : item.id)}
+                                      className="premium-table-row swipe-front-row"
+                                      style={{
+                                        borderLeft: status === 'pending'
+                                          ? '3.5px solid var(--gold)'
+                                          : status === 'overdue'
+                                            ? '3.5px solid var(--neg)'
+                                            : '3.5px solid transparent',
+                                        backgroundColor: 'var(--surface)',
+                                        backgroundImage: status === 'pending'
+                                          ? 'linear-gradient(rgba(255, 179, 0, 0.03), rgba(255, 179, 0, 0.03))'
+                                          : status === 'overdue'
+                                            ? 'linear-gradient(rgba(239, 68, 68, 0.03), rgba(239, 68, 68, 0.03))'
+                                            : 'none'
+                                      }}
+                                    >
+                                      <div className="cell-sit" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                                        <span className={`status-badge-premium ${status}`} style={{ width: '100%', justifyContent: 'center' }}>
+                                          {status === 'paid' && '✓ Recebido'}
+                                          {status === 'pending' && '○ Pendente'}
+                                          {status === 'overdue' && '! Atrasado'}
+                                        </span>
+                                        <span className="status-badge-premium variable" style={{ width: '100%', justifyContent: 'center', background: 'var(--orange-soft, #FFF5EB)', color: 'var(--orange, #E97819)' }}>
+                                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange, #E97819)' }} />
+                                          {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                        </span>
+                                      </div>
                                       
-                                      {activeMenuId === item.id && (
-                                        <div className="premium-dropdown" style={{ right: 0 }}>
-                                          <button className="dropdown-item" onClick={() => {
-                                            const cloned = {
-                                              ...item,
-                                              id: undefined as unknown as string,
-                                              created_at: undefined as unknown as string,
-                                              updated_at: undefined as unknown as string,
-                                              received_at: null,
-                                              payment_status: false,
-                                              installment_group_id: undefined
-                                            }
-                                            setEditIncome(cloned)
-                                            setActiveMenuId(null)
-                                          }}>
-                                            <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
+                                      <div style={{ width: 1, alignSelf: 'stretch', height: 'auto', background: '#EDE5D9', margin: '12px 0' }} />
+
+                                      <div className="cell-desc" style={{ paddingLeft: 8 }}>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: '#133C36', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description || item.category}>
+                                          {item.description || item.category}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#71817E', marginTop: 4 }}>
+                                          {descriptionSubtext}
+                                        </div>
+                                      </div>
+
+                                      <div className="cell-cat" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                                        <span className="category-badge-premium" style={{ backgroundColor: catColor + '10', color: catColor }}>
+                                          {cat?.icon ? (
+                                            (() => {
+                                              const IconComp = (LucideIcons as any)[cat.icon]
+                                              return IconComp ? <IconComp size={12} strokeWidth={3} /> : <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                            })()
+                                          ) : (
+                                            <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                          )}
+                                          {item.category}
+                                        </span>
+                                        {item.income_method && (
+                                         <span className="method-badge-premium" style={{ background: 'var(--surface-2)', border: '1px solid #EDE5D9', color: '#71817E' }}>
+                                           <div style={{ width: 12, display: 'flex', justifyContent: 'center' }}>
+                                             {item.income_method === 'pix' ? <QrCode size={10} /> :
+                                              item.income_method === 'transfer' ? <ArrowRightLeft size={10} /> :
+                                              item.income_method === 'cash' ? <Banknote size={10} /> :
+                                              item.income_method === 'boleto' ? <Barcode size={10} /> :
+                                              item.income_method === 'deposit' ? <Landmark size={10} /> :
+                                              item.income_method === 'card' ? <CreditCard size={10} /> :
+                                              item.income_method === 'other' ? <Plus size={10} /> :
+                                              <HelpCircle size={10} />}
+                                           </div>
+                                           {item.income_method === 'pix' ? 'Pix' :
+                                            item.income_method === 'transfer' ? 'TED' :
+                                            item.income_method === 'cash' ? 'Dinheiro' :
+                                            item.income_method === 'boleto' ? 'Boleto' :
+                                            item.income_method === 'deposit' ? 'Depósito' :
+                                            item.income_method === 'card' ? 'Cartão' :
+                                            item.income_method === 'other' ? 'Outro' :
+                                            item.income_method}
+                                         </span>
+                                        )}
+                                      </div>
+
+                                      <div className="cell-acc" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {item.account_id ? (
+                                          account ? (
+                                            <span className="account-badge-premium active" style={{ background: 'transparent', border: '1px solid #EDE5D9', color: '#133C36' }}>
+                                              <Wallet size={12} style={{ color: '#8A05BE' }} />
+                                              {account.name}
+                                            </span>
+                                          ) : (
+                                            <span className="account-badge-premium warning">
+                                              <AlertTriangle size={12} />
+                                              Conta não encontrada
+                                            </span>
+                                          )
+                                        ) : (
+                                          <span className="account-badge-premium warning">
+                                            <Shield size={12} />
+                                            Sem conta
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="cell-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
+                                        <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 16, fontWeight: 700, color: status === 'paid' ? '#16A34A' : status === 'overdue' ? '#DC503C' : '#D99800' }}>
+                                          + R$ {brl(Number(item.amount))}
+                                        </div>
+                                        {valSub && (
+                                          <div style={{ fontSize: 11, color: '#71817E', marginTop: 4 }}>{valSub}</div>
+                                        )}
+                                      </div>
+                                      </motion.div>
+                                  </div>
+
+                                  {/* Mobile Card */}
+                                  <div className="swipeable-container mobile-only">
+                                    <div className="swipe-actions-bg">
+                                      {status !== 'paid' ? (
+                                        <button 
+                                          className="swipe-action-btn check"
+                                          onClick={() => handleToggleStatus(item)}
+                                          disabled={savingItemId !== null}
+                                        >
+                                          {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={16} />}
+                                          <span>Receber</span>
+                                        </button>
+                                      ) : (
+                                        <button 
+                                          className="swipe-action-btn uncheck"
+                                          onClick={() => handleToggleStatusToUnpaid(item)}
+                                          disabled={savingItemId !== null}
+                                        >
+                                          {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <X size={16} />}
+                                          <span>Desmarcar</span>
+                                        </button>
+                                      )}
+                                      <button 
+                                        className="swipe-action-btn edit"
+                                        onClick={() => setEditIncome(item)}
+                                      >
+                                        <Pencil size={16} />
+                                        <span>Editar</span>
+                                      </button>
+                                      <button 
+                                        className="swipe-action-btn delete"
+                                        onClick={() => {
+                                          requestDelete(item)
+                                        }}
+                                      >
+                                        <Trash2 size={16} />
+                                        <span>Excluir</span>
+                                      </button>
+                                    </div>
+
+                                    <motion.div 
+                                      drag="x"
+                                      dragDirectionLock
+                                      dragConstraints={{ left: -180, right: 0 }}
+                                      dragElastic={{ left: 0.1, right: 0.1 }}
+                                      animate={{ x: openSwipeRowId === item.id ? -180 : 0 }}
+                                      transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+                                      onDragEnd={(event, info) => {
+                                        if (info.offset.x < -60) {
+                                          setOpenSwipeRowId(item.id)
+                                        } else if (info.offset.x > 60) {
+                                          setOpenSwipeRowId(null)
+                                        } else {
+                                          if (info.velocity.x < -100) {
+                                            setOpenSwipeRowId(item.id)
+                                          } else if (info.velocity.x > 100) {
+                                            setOpenSwipeRowId(null)
+                                          }
+                                        }
+                                      }}
+                                      className="premium-mobile-card swipe-front-row"
+                                      style={{
+                                        borderLeft: status === 'pending'
+                                          ? '4px solid var(--gold)'
+                                          : status === 'overdue'
+                                            ? '4px solid var(--neg)'
+                                            : '1px solid var(--line-soft)',
+                                        backgroundColor: 'var(--surface)',
+                                        backgroundImage: status === 'pending'
+                                          ? 'linear-gradient(rgba(255, 179, 0, 0.03), rgba(255, 179, 0, 0.03))'
+                                          : status === 'overdue'
+                                            ? 'linear-gradient(rgba(239, 68, 68, 0.03), rgba(239, 68, 68, 0.03))'
+                                            : 'none'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        {/* Top row: Status, Nature and Value */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <span className={`status-badge-premium ${status}`} style={{ padding: '4px 10px' }}>
+                                              {status === 'paid' && '✓ Recebido'}
+                                              {status === 'pending' && '○ Pendente'}
+                                              {status === 'overdue' && '! Atrasado'}
+                                            </span>
+                                            <span className="status-badge-premium variable" style={{ padding: '4px 10px', background: 'var(--orange-soft, #FFF5EB)', color: 'var(--orange, #E97819)' }}>
+                                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange, #E97819)' }} />
+                                              {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
+                                            </span>
+                                          </div>
+                                          <div className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 16, fontWeight: 700, color: status === 'paid' ? '#16A34A' : status === 'overdue' ? '#DC503C' : '#D99800', textAlign: 'right' }}>
+                                            + R$ {brl(Number(item.amount))}
+                                            {valSub && <div style={{ fontSize: 11, color: '#71817E', marginTop: 2, fontWeight: 500 }}>{valSub}</div>}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Middle: Desc and Date */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                          <span style={{ fontSize: 15, fontWeight: 700, color: '#133C36' }}>
+                                            {item.description || item.category}
+                                          </span>
+                                          <span style={{ fontSize: 12, color: '#71817E' }}>
+                                            {descriptionSubtext}
+                                          </span>
+                                        </div>
+
+                                        {/* Bottom row: Category, Method, Account */}
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', background: 'transparent', padding: 0 }}>
+                                          <span className="category-badge-premium" style={{ backgroundColor: catColor + '10', color: catColor }}>
+                                            {cat?.icon ? (
+                                              (() => {
+                                                const IconComp = (LucideIcons as any)[cat.icon]
+                                                return IconComp ? <IconComp size={12} strokeWidth={3} /> : <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                              })()
+                                            ) : (
+                                              <span className="category-dot" style={{ backgroundColor: catColor }} />
+                                            )}
+                                            {item.category}
+                                          </span>
+                                          {item.income_method && (
+                                           <span className="method-badge-premium" style={{ background: 'var(--surface-2)', border: '1px solid #EDE5D9', color: '#71817E' }}>
+                                             <div style={{ width: 12, display: 'flex', justifyContent: 'center' }}>
+                                               {item.income_method === 'pix' ? <QrCode size={10} /> :
+                                                item.income_method === 'transfer' ? <ArrowRightLeft size={10} /> :
+                                                item.income_method === 'cash' ? <Banknote size={10} /> :
+                                                item.income_method === 'boleto' ? <Barcode size={10} /> :
+                                                item.income_method === 'deposit' ? <Landmark size={10} /> :
+                                                item.income_method === 'card' ? <CreditCard size={10} /> :
+                                                item.income_method === 'other' ? <Plus size={10} /> :
+                                                <HelpCircle size={10} />}
+                                             </div>
+                                             {item.income_method === 'pix' ? 'Pix' :
+                                              item.income_method === 'transfer' ? 'TED' :
+                                              item.income_method === 'cash' ? 'Dinheiro' :
+                                              item.income_method === 'boleto' ? 'Boleto' :
+                                              item.income_method === 'deposit' ? 'Depósito' :
+                                              item.income_method === 'card' ? 'Cartão' :
+                                              item.income_method === 'other' ? 'Outro' :
+                                              item.income_method}
+                                           </span>
+                                          )}
+                                          {item.account_id ? (
+                                            account ? (
+                                              <span className="account-badge-premium active" style={{ background: 'transparent', border: '1px solid #EDE5D9', color: '#133C36' }}>
+                                                <Wallet size={12} style={{ color: '#8A05BE' }} />
+                                                {account.name}
+                                              </span>
+                                            ) : (
+                                              <span className="account-badge-premium warning">
+                                                <AlertTriangle size={12} />
+                                                Conta não encontrada
+                                              </span>
+                                            )
+                                          ) : (
+                                            <span className="account-badge-premium warning">
+                                              <Shield size={12} />
+                                              Sem conta
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="mobile-actions-row" onClick={e => e.stopPropagation()}>
+                                        {status !== 'paid' ? (
+                                          <button 
+                                            className="mobile-action-btn primary"
+                                            onClick={() => handleToggleStatus(item)}
+                                            disabled={savingItemId !== null}
+                                            style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                          >
+                                            {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={12} />} 
+                                            Marcar recebida
                                           </button>
-                                          {status === 'paid' && (
-                                            <button className="dropdown-item warning" onClick={() => {
-                                              handleToggleStatusToUnpaid(item)
+                                        ) : null}
+                                        <button 
+                                          className="mobile-action-btn secondary"
+                                          onClick={() => setEditIncome(item)}
+                                        >
+                                          Editar
+                                        </button>
+                                        <button 
+                                          className="mobile-action-btn icon"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setActiveMenuId(activeMenuId === item.id ? null : item.id)
+                                          }}
+                                        >
+                                          <MoreHorizontal size={14} />
+                                        </button>
+                                        
+                                        {activeMenuId === item.id && (
+                                          <div className="premium-dropdown" style={{ bottom: '100%', top: 'auto', right: 0 }}>
+                                            <button className="dropdown-item" onClick={() => {
+                                              const cloned = {
+                                                ...item,
+                                                id: undefined as unknown as string,
+                                                created_at: undefined as unknown as string,
+                                                updated_at: undefined as unknown as string,
+                                                received_at: null,
+                                                payment_status: false,
+                                                installment_group_id: undefined
+                                              }
+                                              setEditIncome(cloned)
                                               setActiveMenuId(null)
                                             }}>
-                                              <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
+                                              <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
                                             </button>
-                                          )}
-                                          <button className="dropdown-item danger" onClick={() => {
-                                            if (confirm("Tem certeza que deseja excluir esta receita?")) {
-                                              handleDelete(item.id)
-                                            }
-                                            setActiveMenuId(null)
-                                          }}>
-                                            <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Mobile Card */}
-                                <div 
-                                  className="premium-mobile-card mobile-only"
-                                  style={{
-                                    borderLeft: status === 'pending'
-                                      ? '4px solid var(--gold)'
-                                      : status === 'overdue'
-                                        ? '4px solid var(--neg)'
-                                        : '1px solid var(--line-soft)',
-                                    background: status === 'pending'
-                                      ? 'rgba(255, 179, 0, 0.015)'
-                                      : status === 'overdue'
-                                        ? 'rgba(239, 68, 68, 0.015)'
-                                        : 'var(--surface)'
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
-                                      {item.description || item.category}
-                                    </span>
-                                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{
-                                      fontSize: 13,
-                                      fontWeight: 800,
-                                      color: status === 'paid' ? 'var(--green)' : status === 'overdue' ? 'var(--neg)' : 'var(--teal-900)'
-                                    }}>
-                                      + R$ {brl(Number(item.amount))}
-                                    </span>
-                                  </div>
-                                  
-                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <span className={`status-badge-premium ${status}`}>
-                                      {status === 'paid' && '✓ Recebido'}
-                                      {status === 'pending' && '○ Pendente'}
-                                      {status === 'overdue' && '! Atrasado'}
-                                    </span>
-                                    <span 
-                                      style={{ 
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        fontSize: '9px', 
-                                        fontWeight: 800,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em',
-                                        padding: '2px 6px',
-                                        borderRadius: '6px',
-                                        background: item.income_type === 'fixed' ? 'rgba(1, 88, 76, 0.05)' : 'rgba(245, 124, 0, 0.05)',
-                                        color: item.income_type === 'fixed' ? 'var(--teal)' : 'var(--orange-ink)',
-                                        border: item.income_type === 'fixed' ? '1px solid rgba(1, 88, 76, 0.12)' : '1px solid rgba(245, 124, 0, 0.12)'
-                                      }}
-                                    >
-                                      {item.income_type === 'fixed' ? 'Fixa' : 'Variável'}
-                                    </span>
-                                  </div>
-                                  
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '11px', color: 'var(--muted)', background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 12 }}>
-                                    <div>{descriptionSubtext}</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: catColor }}>
-                                        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: catColor }} />
-                                        {item.category}
-                                      </span>
-                                      {item.income_method && (
-                                        <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', background: 'rgba(0,0,0,0.04)', padding: '1px 4px', borderRadius: '4px' }}>
-                                          {item.income_method}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div>
-                                      {item.account_id ? (
-                                        account ? (
-                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--teal-900)', fontWeight: 600 }}>
-                                            <Wallet size={11} style={{ color: 'var(--teal)' }} />
-                                            {account.name}
-                                          </span>
-                                        ) : (
-                                          <span style={{ color: '#A06E00', fontWeight: 600 }}>Conta não encontrada</span>
-                                        )
-                                      ) : (
-                                        <span style={{ color: '#A06E00', fontWeight: 600 }}>Sem conta</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="mobile-actions-row" onClick={e => e.stopPropagation()}>
-                                    {status !== 'paid' ? (
-                                      <button 
-                                        className="mobile-action-btn primary"
-                                        onClick={() => handleToggleStatus(item)}
-                                        disabled={savingItemId !== null}
-                                        style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                                      >
-                                        {savingItemId === item.id ? <div className="spinner-small" style={{ borderTopColor: 'white' }} /> : <CheckCircle2 size={12} />} 
-                                        Marcar recebida
-                                      </button>
-                                    ) : null}
-                                    <button 
-                                      className="mobile-action-btn secondary"
-                                      onClick={() => setEditIncome(item)}
-                                    >
-                                      Editar
-                                    </button>
-                                    <button 
-                                      className="mobile-action-btn icon"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setActiveMenuId(activeMenuId === item.id ? null : item.id)
-                                      }}
-                                    >
-                                      <MoreHorizontal size={14} />
-                                    </button>
-                                    
-                                    {activeMenuId === item.id && (
-                                      <div className="premium-dropdown" style={{ bottom: '100%', top: 'auto', right: 0 }}>
-                                        <button className="dropdown-item" onClick={() => {
-                                          const cloned = {
-                                            ...item,
-                                            id: undefined as unknown as string,
-                                            created_at: undefined as unknown as string,
-                                            updated_at: undefined as unknown as string,
-                                            received_at: null,
-                                            payment_status: false,
-                                            installment_group_id: undefined
-                                          }
-                                          setEditIncome(cloned)
-                                          setActiveMenuId(null)
-                                        }}>
-                                          <Copy size={13} style={{ marginRight: 6 }} /> Duplicar
-                                        </button>
-                                        {status === 'paid' && (
-                                          <button className="dropdown-item warning" onClick={() => {
-                                            handleToggleStatusToUnpaid(item)
-                                            setActiveMenuId(null)
-                                          }}>
-                                            <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
-                                          </button>
+                                            {status === 'paid' && (
+                                              <button className="dropdown-item warning" onClick={() => {
+                                                handleToggleStatusToUnpaid(item)
+                                                setActiveMenuId(null)
+                                              }}>
+                                                <X size={13} style={{ marginRight: 6 }} /> Desmarcar recebida
+                                              </button>
+                                            )}
+                                            <button className="dropdown-item danger" onClick={() => {
+                                              requestDelete(item)
+                                              setActiveMenuId(null)
+                                            }}>
+                                              <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
+                                            </button>
+                                          </div>
                                         )}
-                                        <button className="dropdown-item danger" onClick={() => {
-                                          if (confirm("Tem certeza que deseja excluir esta receita?")) {
-                                            handleDelete(item.id)
-                                          }
-                                          setActiveMenuId(null)
-                                        }}>
-                                          <Trash2 size={13} style={{ marginRight: 6 }} /> Excluir
-                                        </button>
                                       </div>
-                                    )}
+                                    </motion.div>
                                   </div>
                                 </div>
-                              </div>
                             )
                           })}
                         </div>
@@ -1790,11 +1930,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             color: var(--ink);
           }
           .date-group-card {
-            background: var(--surface);
-            border: 1px solid var(--line-soft);
-            border-radius: 16px;
-            box-shadow: 0 2px 8px -2px rgba(13, 61, 55, 0.03);
-            margin-bottom: 16px;
+            background: #FFFCF8;
+            border: 1px solid #EDE5D9;
+            border-radius: 22px;
+            box-shadow: 0 8px 28px rgba(19, 60, 54, 0.06);
+            margin-bottom: 24px;
             overflow: hidden;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
           }
@@ -1802,9 +1942,9 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             transform: translateY(-1px);
             box-shadow: 0 4px 12px -2px rgba(13, 61, 55, 0.06);
           }
-          .premium-table-row {
+          :global(.premium-table-row) {
             display: grid;
-            grid-template-columns: 120px 2fr 1.2fr 1.2fr 100px 120px;
+            grid-template-columns: 120px 1px 2.5fr 1.5fr 1.5fr 130px;
             gap: 12px;
             align-items: center;
             padding: 14px 16px;
@@ -1812,20 +1952,32 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             background: var(--surface);
             position: relative;
+            cursor: pointer;
           }
-          .premium-table-row:hover {
-            background-color: rgba(1, 88, 76, 0.02) !important;
+          :global(.premium-table-row::after) {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-color: rgba(1, 88, 76, 0.02);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+          }
+          :global(.premium-table-row:hover::after) {
+            opacity: 1;
           }
           .status-badge-premium {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 4px;
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 9.5px;
+            font-weight: 500;
             padding: 4px 8px;
             border-radius: 8px;
             white-space: nowrap;
             border: 1px solid transparent;
+            width: 82px;
           }
           .status-badge-premium.paid {
             color: var(--green);
@@ -1842,18 +1994,47 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             background: rgba(239,68,68,0.06);
             border-color: rgba(239,68,68,0.15);
           }
+          .status-badge-premium.fixed {
+            color: var(--teal);
+            background: rgba(1, 88, 76, 0.06);
+            border-color: rgba(1, 88, 76, 0.15);
+          }
+          .status-badge-premium.variable {
+            color: var(--orange-ink);
+            background: rgba(245, 124, 0, 0.06);
+            border-color: rgba(245, 124, 0, 0.15);
+          }
           .category-badge-premium {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             font-size: 11px;
             font-weight: 600;
             padding: 4px 10px;
             border-radius: 12px;
-            max-width: 100%;
+            width: 120px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            border: 1px solid transparent;
+          }
+          .method-badge-premium {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--muted);
+            background: rgba(94, 111, 105, 0.05);
+            border: 1px solid rgba(94, 111, 105, 0.12);
           }
           .category-dot {
             width: 6px;
@@ -1863,19 +2044,28 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           }
           .account-badge-premium {
             display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
             font-size: 11px;
             font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 8px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            width: 130px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid transparent;
           }
           .account-badge-premium.active {
             color: var(--ink);
             background: var(--surface-2);
+            border-color: var(--line-soft);
           }
           .account-badge-premium.warning {
             color: #A06E00;
-            background: rgba(255,179,0,0.08);
+            background: rgba(255,179,0,0.06);
+            border-color: rgba(255,179,0,0.15);
           }
           .account-badge-premium.muted {
             color: var(--muted);
@@ -2016,7 +2206,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             .mobile-only {
               display: flex !important;
             }
-            .premium-mobile-card {
+            :global(.premium-mobile-card) {
               border: 1px solid var(--line-soft);
               border-radius: 16px;
               background: var(--surface);
@@ -2024,12 +2214,11 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
               display: flex;
               flex-direction: column;
               gap: 12px;
-              margin-bottom: 12px;
               box-shadow: 0 2px 8px -2px rgba(13, 61, 55, 0.03);
               position: relative;
               transition: transform 0.2s ease, box-shadow 0.2s ease;
             }
-            .premium-mobile-card:hover {
+            :global(.premium-mobile-card:hover) {
               transform: translateY(-1px);
               box-shadow: 0 4px 12px -2px rgba(13, 61, 55, 0.06);
             }
@@ -2092,7 +2281,7 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             .premium-table-header {
               grid-template-columns: 120px 2.2fr 110px 120px !important;
             }
-            .premium-table-row {
+            :global(.premium-table-row) {
               grid-template-columns: 120px 2.2fr 110px 120px !important;
             }
             .col-cat, .col-acc, .cell-cat, .cell-acc {
@@ -2136,104 +2325,86 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           }
 
           @media (prefers-reduced-motion: reduce) {
-            .date-group-card, .premium-table-row, .premium-mobile-card {
+            .date-group-card, :global(.premium-table-row), :global(.premium-mobile-card) {
               transition: none !important;
               transform: none !important;
             }
+          }
+
+          .swipeable-container {
+            position: relative;
+            overflow: hidden;
+            background: #EAEAEA;
+            border-radius: 16px;
+          }
+          .swipeable-container.desktop-tablet-only {
+            border-radius: 0;
+            background: #EAEAEA;
+          }
+          .swipeable-container.mobile-only {
+            margin-bottom: 12px;
+            background: #EAEAEA;
+          }
+          .swipe-actions-bg {
+            position: absolute;
+            top: 1px;
+            right: 1px;
+            bottom: 1px;
+            display: flex;
+            align-items: stretch;
+            z-index: 1;
+            border-radius: 0 15px 15px 0;
+          }
+          .swipe-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            font-family: inherit;
+            transition: background-color 0.2s ease;
+          }
+          .swipe-action-btn.check {
+            background: #10B981;
+          }
+          .swipe-action-btn.check:hover {
+            background: #059669;
+          }
+          .swipe-action-btn.uncheck {
+            background: #D97706;
+          }
+          .swipe-action-btn.uncheck:hover {
+            background: #B45309;
+          }
+          .swipe-action-btn.edit {
+            background: #3B82F6;
+          }
+          .swipe-action-btn.edit:hover {
+            background: #2563EB;
+          }
+          .swipe-action-btn.delete {
+            background: #EF4444;
+          }
+          .swipe-action-btn.delete:hover {
+            background: #DC2626;
+          }
+          :global(.swipe-front-row) {
+            position: relative;
+            z-index: 2;
+            touch-action: pan-y;
+            transition: none !important;
           }
         `}</style>
       </section>
 
         </div>
         <div className="receitas-rail-col">
-          {/* Card Compacto: Finnly IA */}
-          <div className="compact-insight-card ai-rail-card" style={{ 
-            minHeight: 250, 
-            height: 'auto', 
-            padding: '20px 16px',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #EBF7F4 100%)', 
-            border: '1.5px solid rgba(1, 107, 76, 0.25)', 
-            boxShadow: '0 8px 32px rgba(1, 107, 76, 0.06)', 
-            display: 'flex', 
-            flexDirection: 'column',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Soft ambient glow effect in the corner */}
-            <div style={{
-              position: 'absolute',
-              top: '-40px',
-              right: '-40px',
-              width: '120px',
-              height: '120px',
-              background: 'radial-gradient(circle, rgba(1, 107, 76, 0.08) 0%, rgba(1, 107, 76, 0) 70%)',
-              pointerEvents: 'none'
-            }} />
-            <div className="compact-card-header" style={{ marginBottom: 16, position: 'relative', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ 
-                  background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-900) 100%)', 
-                  padding: 8, 
-                  borderRadius: 10, 
-                  boxShadow: '0 4px 12px rgba(1,88,76,0.2)',
-                  animation: 'pulse-soft 2s infinite ease-in-out',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Sparkles size={18} color="white" />
-                </div>
-                <span className="compact-card-title">FINNLY IA</span>
-              </div>
-              <CardInfoTooltip content="Sugestões inteligentes para entender melhor suas entradas e oportunidades." />
-            </div>
-            
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4, position: 'relative', zIndex: 1 }}>
-              Entenda suas receitas, pendências e oportunidades com ajuda da IA.
-            </p>
-            
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'auto', position: 'relative', zIndex: 1 }}>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Analisar receitas")}>
-                Analisar receitas
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Minha renda está concentrada?")}>
-                Renda concentrada?
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Previsão do mês")}>
-                Previsão do mês
-              </button>
-              <button className="ia-action-chip" onClick={() => onAsk?.("Como aumentar renda?")}>
-                Como aumentar renda?
-              </button>
-            </div>
-            
-            <button className="btn-primary" style={{ width: '100%', marginTop: 24, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, position: 'relative', zIndex: 1 }} onClick={() => onAsk?.("Gostaria de falar com o Finnly IA sobre minhas receitas.")}>
-              <Sparkles size={16} /> Perguntar ao Finnly IA
-            </button>
-            
-            <style jsx>{`
-              .ia-action-chip {
-                display: flex;
-                align-items: center;
-                padding: 6px 12px;
-                background: white;
-                border: 1px solid var(--line-soft);
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: 600;
-                color: var(--ink);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-              }
-              .ia-action-chip:hover {
-                transform: translateY(-1px);
-                border-color: var(--teal);
-                color: var(--teal-900);
-                box-shadow: 0 4px 8px rgba(1,88,76,0.1);
-              }
-            `}</style>
-          </div>
           {/* Card Compacto: Receitas do Período */}
           <div className="compact-insight-card period-card">            <div className="compact-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2348,241 +2519,12 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
             </div>
           </div>
 
-          {/* Card Compacto: Próximos Recebimentos Premium */}
-          <div className="compact-insight-card" style={{ minHeight: 250, maxHeight: 420, height: 'auto', padding: '20px 16px' }}>
-            <div className="compact-card-header" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ 
-                  width: 36, 
-                  height: 36, 
-                  borderRadius: 12, 
-                  background: 'rgba(1, 88, 76, 0.06)', 
-                  color: 'var(--teal)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  boxShadow: 'var(--shadow-sm)'
-                }}>
-                  <CalendarClock size={18} />
-                </div>
-                <div>
-                  <span className="compact-card-title" style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>PRÓXIMOS RECEBIMENTOS</span>
-                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '2px 0 0 0', fontWeight: 500 }}>Valores que entrarão em sua conta em breve.</p>
-                </div>
-              </div>
-              <CardInfoTooltip content="Mostra as próximas receitas pendentes ou atrasadas do período selecionado." />
-            </div>
-
-            <div className="compact-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', justifyContent: upcomingReceipts.length === 0 ? 'center' : 'flex-start' }}>
-              {upcomingReceipts.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px 16px', gap: 12, width: '100%', background: 'var(--surface)', border: '1px dashed var(--line)', borderRadius: 16 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(40, 167, 69, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)' }}>
-                    <Check size={20} />
-                  </div>
-                  <div>
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--teal-900)', margin: 0 }}>Nenhum recebimento previsto</h4>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>Você não possui entradas pendentes para os próximos dias.</p>
-                  </div>
-                  <button 
-                    className="btn-primary" 
-                    style={{
-                      padding: '6px 14px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      borderRadius: 99,
-                      background: 'var(--teal)',
-                      color: 'white',
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(1, 88, 76, 0.12)'
-                    }} 
-                    onClick={() => setShowIncomeModal(true)}
-                  >
-                    Nova receita
-                  </button>
-                </div>
-              ) : (
-                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-                  {/* Subtle timeline dashed line */}
-                  <div className="upcoming-timeline-line" style={{
-                    position: 'absolute',
-                    left: 11,
-                    top: 20,
-                    bottom: 20,
-                    borderLeft: '1.5px dashed rgba(13, 61, 55, 0.15)',
-                    pointerEvents: 'none',
-                    zIndex: 1
-                  }} />
-
-                  {upcomingReceipts.map((item, idx) => {
-                    const isFirst = idx === 0
-                    const rel = getRelativeDateLabel(item.date)
-                    const isOverdue = getTransactionStatus(item.payment_status, item.date) === 'overdue'
-                    const subtext = getUpcomingSubtext(item)
-                    const CatIcon = getCategoryIcon(item.category, item.description)
-                    
-                    return (
-                      <div key={item.id} className="upcoming-timeline-row" style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%' }}>
-                        {/* Dot marker */}
-                        <div className="upcoming-timeline-dot" style={{ width: 24, display: 'flex', justifyContent: 'center', zIndex: 2, flexShrink: 0 }}>
-                          <div style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: isOverdue ? 'var(--neg)' : isFirst ? 'var(--teal-900)' : 'rgba(13, 61, 55, 0.25)',
-                            border: '2px solid white',
-                            boxShadow: '0 0 0 1px rgba(13, 61, 55, 0.12)'
-                          }} />
-                        </div>
-
-                        {/* Inner card horizontal */}
-                        <div 
-                          className="upcoming-row"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '10px 14px',
-                            borderRadius: 16,
-                            background: 'white',
-                            border: isOverdue ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--line-soft)',
-                            boxShadow: '0 2px 8px -2px rgba(13, 61, 55, 0.02)',
-                            cursor: 'pointer',
-                            flex: 1,
-                            minWidth: 0,
-                            gap: 12
-                          }}
-                          onClick={() => setEditIncome(item)}
-                          title="Clique para editar esta receita"
-                        >
-                          {/* Icon + Titles */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-                            <div style={{ 
-                              width: 32, 
-                              height: 32, 
-                              borderRadius: 10, 
-                              background: isOverdue ? 'rgba(239, 68, 68, 0.05)' : 'rgba(1, 88, 76, 0.04)', 
-                              color: isOverdue ? 'var(--neg)' : 'var(--teal)', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}>
-                              <CatIcon size={14} />
-                            </div>
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {item.description || item.category}
-                              </span>
-                              {subtext ? (
-                                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {subtext}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          {/* Date and Relative Badge */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)' }}>
-                              <CalendarDays size={11} />
-                              <span style={{ fontSize: 10, fontWeight: 600 }}>{formatShortDate(item.date)}</span>
-                            </div>
-                            <span style={{
-                              fontSize: 9,
-                              fontWeight: 800,
-                              padding: '2px 6px',
-                              borderRadius: 6,
-                              background: rel.bg,
-                              color: rel.color,
-                              whiteSpace: 'nowrap'
-                            }}>
-                              {rel.label}
-                            </span>
-                          </div>
-
-                          {/* Dotted Vertical separator */}
-                          <div style={{ width: 1, height: 28, borderLeft: '1px dashed var(--line-soft)', flexShrink: 0 }} />
-
-                          {/* Value */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, minWidth: 70 }}>
-                            <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 13, fontWeight: 800, color: rel.valueColor }}>
-                              + R$ {brl(Number(item.amount))}
-                            </span>
-                            {isOverdue && (
-                              <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--neg)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: 1 }}>
-                                Vencido
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Footer Summary Banner */}
-            {upcomingReceipts.length > 0 && (
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                padding: '10px 14px', 
-                background: 'rgba(1, 88, 76, 0.03)', 
-                border: '1px solid var(--line-soft)', 
-                borderRadius: 16,
-                marginTop: 6
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ 
-                    width: 30, 
-                    height: 30, 
-                    borderRadius: 8, 
-                    background: 'rgba(1, 88, 76, 0.08)', 
-                    color: 'var(--teal)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center' 
-                  }}>
-                    <Wallet size={14} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total previsto para receber</span>
-                    <span className={`tabnums${hidden ? ' priv' : ''}`} style={{ fontSize: 14, fontWeight: 800, color: 'var(--teal-900)' }}>
-                      + R$ {brl(totalUpcomingAmount)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 8,
-                  background: 'white',
-                  border: '1px solid var(--line-soft)',
-                  padding: '6px 12px',
-                  borderRadius: 10,
-                  boxShadow: 'var(--shadow-sm)'
-                }}>
-                  <TrendingUp size={14} style={{ color: 'var(--teal)' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--teal-900)' }}>
-                      {upcomingReceipts.length} recebimento{upcomingReceipts.length > 1 ? 's' : ''}
-                    </span>
-                    <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--muted)' }}>
-                      {footerRangeLabel}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-
-        </div>
+          {/* Card Compacto: Finnly IA */}
+          <RevenueAICard
+            model={revenueAIModel}
+            contextPayloadBase={revenueAIContextPayload}
+            onAsk={(question, context) => onAsk?.(question, context)}
+          />        </div>
       </div>
 
       {/* --- SEGUNDA DOBRA: ANÁLISES COMPLEMENTARES --- */}
@@ -3059,6 +3001,30 @@ export function ReceitasSection({ hidden, onAsk }: { hidden: boolean; onAsk?: (s
           setShowIncomeModal(true)
           setInsightDrawerOpen(false)
         }}
+      />
+
+      <DeleteRevenueModal
+        open={deleteModal.open}
+        revenue={deleteModal.revenue}
+        categories={categories}
+        accounts={accounts}
+        isDeleting={isDeleting}
+        error={deleteError}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        onExitComplete={handleExitCompleteDelete}
+      />
+
+      <UnmarkRevenueModal
+        open={unmarkModal.open}
+        revenue={unmarkModal.revenue}
+        categories={categories}
+        accounts={accounts}
+        isUpdating={isUpdatingRevenueStatus}
+        error={unmarkError}
+        onClose={handleCloseUnmarkModal}
+        onConfirm={handleConfirmUnmarkRevenue}
+        onExitComplete={handleUnmarkModalExitComplete}
       />
     </div>
   )

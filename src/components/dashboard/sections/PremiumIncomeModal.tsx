@@ -1,6 +1,6 @@
 import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ChevronDown, Tag, Upload, Check, Clock, Plus } from 'lucide-react'
+import { X, ChevronDown, Tag, Upload, Check, Clock, Plus, QrCode, ArrowRightLeft, Banknote, Barcode, Landmark, CreditCard, HelpCircle } from 'lucide-react'
 import { CustomDatePicker } from '@/components/ui/CustomDatePicker'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { QuickCategoryModal, QuickAccountModal } from '@/components/ui/QuickModals'
@@ -50,11 +50,11 @@ function getAmountWidth(val: string) {
   let width = 0
   for (let i = 0; i < val.length; i++) {
     const char = val[i]
-    if (char === ',' || char === '.') width += 10
-    else if (char === '1') width += 16
-    else width += 24
+    if (char === ',' || char === '.') width += 12
+    else if (char === '1') width += 18
+    else width += 28
   }
-  return Math.max(width + 10, 100)
+  return Math.max(width + 20, 100)
 }
 
 function calculateInstallments(total: number, count: number): number[] {
@@ -659,10 +659,15 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
             <div style={{ display: 'flex', gap: 12 }}>
               <div className="premium-field-label" style={{ flex: 1 }}>
                 <span>Tipo de entrada</span>
-                <select className="premium-form-input" value={incomeType} onChange={e => setIncomeType(e.target.value as 'fixed' | 'variable')} disabled={isPending}>
-                  <option value="variable">Variável</option>
-                  <option value="fixed">Fixa</option>
-                </select>
+                <CustomSelect
+                  value={incomeType}
+                  onChange={(val) => setIncomeType(val as 'fixed' | 'variable')}
+                  disabled={isPending}
+                  options={[
+                    { value: 'variable', label: 'Variável' },
+                    { value: 'fixed', label: 'Fixa' }
+                  ]}
+                />
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontWeight: 600 }}>
                   {incomeType === 'fixed' 
                     ? 'Fixa: salário, aluguel recebido ou contrato mensal.' 
@@ -672,26 +677,36 @@ export function PremiumIncomeModal({ income, categories, accounts, onClose, onSa
 
               <div className="premium-field-label" style={{ flex: 1 }}>
                 <span>Forma de recebimento</span>
-                <select className="premium-form-input" value={incomeMethod} onChange={e => setIncomeMethod(e.target.value)} disabled={isPending}>
-                  <option value="">Não informado</option>
-                  <option value="pix">Pix</option>
-                  <option value="transfer">Transferência</option>
-                  <option value="cash">Dinheiro</option>
-                  <option value="boleto">Boleto</option>
-                  <option value="deposit">Depósito</option>
-                  <option value="card">Cartão</option>
-                  <option value="other">Outros</option>
-                </select>
+                <CustomSelect
+                  value={incomeMethod}
+                  onChange={setIncomeMethod}
+                  placeholder="Selecione..."
+                  options={[
+                    { value: '', label: 'Não informado', icon: <HelpCircle size={16} /> },
+                    { value: 'pix', label: 'Pix', icon: <QrCode size={16} /> },
+                    { value: 'transfer', label: 'Transferência', icon: <ArrowRightLeft size={16} /> },
+                    { value: 'cash', label: 'Dinheiro', icon: <Banknote size={16} /> },
+                    { value: 'boleto', label: 'Boleto', icon: <Barcode size={16} /> },
+                    { value: 'deposit', label: 'Depósito', icon: <Landmark size={16} /> },
+                    { value: 'card', label: 'Cartão', icon: <CreditCard size={16} /> },
+                    { value: 'other', label: 'Outros', icon: <Plus size={16} /> },
+                  ]}
+                />
               </div>
             </div>
 
             <div className="premium-field-label">
               <span>Como lançar?</span>
-              <select className="premium-form-input" value={repeatType} onChange={e => setRepeatType(e.target.value as 'single' | 'recurring' | 'installments')} disabled={isPending}>
-                <option value="single">Só uma vez</option>
-                <option value="recurring">Todo mês</option>
-                <option value="installments">Parcelado</option>
-              </select>
+              <CustomSelect
+                value={repeatType}
+                onChange={(val) => setRepeatType(val as 'single' | 'recurring' | 'installments')}
+                disabled={isPending}
+                options={[
+                  { value: 'single', label: 'Só uma vez' },
+                  { value: 'recurring', label: 'Todo mês' },
+                  { value: 'installments', label: 'Parcelado' }
+                ]}
+              />
               
               {repeatType === 'installments' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
